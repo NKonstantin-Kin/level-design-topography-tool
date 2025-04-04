@@ -3,13 +3,16 @@
 <head>
   <title>Level Designer</title>
   <style>
-    body { margin: 0; overflow: hidden; }
+    body { margin: 0; overflow: hidden; font-family: Arial; }
     #canvas { display: block; background: white; }
     #tools {
       position: fixed; top: 10px; left: 10px;
       background: #2c3e50; padding: 10px; border-radius: 5px;
+      color: white;
     }
-    button { display: block; margin: 5px 0; width: 100%; }
+    button, input { display: block; margin: 5px 0; width: 100%; }
+    #clear-btn { background: #e74c3c; }
+    #clear-btn:hover { background: #c0392b; }
   </style>
 </head>
 <body>
@@ -17,6 +20,7 @@
     <button id="line-btn">Линия</button>
     <button id="rect-btn">Прямоугольник</button>
     <input type="color" id="color-picker" value="#0000ff">
+    <button id="clear-btn">Очистить холст</button>
   </div>
   <canvas id="canvas"></canvas>
   <script src="script.js"></script>
