@@ -10,6 +10,24 @@
     .tab.active { background: #ddd; }
     #toolbar { width: 200px; height: 100vh; float: left; background: #eee; }
     #sheet { margin-left: 200px; border: 1px solid #ccc; }
+    .tab {
+  padding: 8px 16px;
+  margin-right: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: #f0f0f0;
+  transition: all 0.2s;
+}
+
+.tab.active {
+  background: #4CAF50;
+  color: white;
+  border-color: #388E3C;
+}
+
+.tab:hover {
+  background: #ddd;
+}
   </style>
 </head>
 <body>
@@ -25,88 +43,118 @@
   <script>
 let sheets = [];
 let currentSheet = 0;
-let gridEnabled = true; // Сетка включена по умолчанию
-let snapToGrid = true;  // Привязка к точкам сетки
-let gridStep = 20;     // Шаг сетки
-let scale = 1;         // Масштаб
+let gridEnabled = true;
+let snapToGrid = true;
+let gridStep = 20;
+let scale = 1;
 
-// Инициализация холста
 const canvas = document.getElementById('sheet');
 const ctx = canvas.getContext('2d');
 canvas.width = 1600;
 canvas.height = 1200;
 
-// Отрисовка сетки
+// Улучшенная отрисовка сетки
 function drawGrid() {
   if (!gridEnabled) return;
   
-  ctx.strokeStyle = '#ddd'; // Цвет сетки
-  ctx.lineWidth = 1;
+  ctx.save();
+  ctx.strokeStyle = '#ddd';
+  ctx.lineWidth = 1 / scale;
   
   // Вертикальные линии
-  for (let x = 0; x < canvas.width; x += gridStep) {
+  for (let x = 0; x <= canvas.width; x += gridStep) {
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
+    ctx.moveTo(x + 0.5, 0);
+    ctx.lineTo(x + 0.5, canvas.height);
     ctx.stroke();
   }
   
   // Горизонтальные линии
-  for (let y = 0; y < canvas.height; y += gridStep) {
+  for (let y = 0; y <= canvas.height; y += gridStep) {
     ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvas.width, y);
+    ctx.moveTo(0, y + 0.5);
+    ctx.lineTo(canvas.width, y + 0.5);
     ctx.stroke();
   }
+  ctx.restore();
 }
 
-// Обновление отображения холста
 function renderSheet() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
-  // Здесь позже будет отрисовка элементов листа
 }
 
-// Создание вкладки для листа
 function createTab(index) {
   const tab = document.createElement('button');
   tab.className = 'tab';
-  tab.textContent = `Лист ${index + 1}`;
+  tab.textContent = sheets[index].name;
   tab.onclick = () => switchSheet(index);
   return tab;
 }
 
-// Переключение между листами
 function switchSheet(index) {
   currentSheet = index;
-  document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-  document.querySelectorAll('.tab')[index].classList.add('active');
+  document.querySelectorAll('.tab').forEach((tab, i) => {
+    tab.classList.toggle('active', i === index);
+  });
   renderSheet();
 }
 
-// Добавление нового листа
 function addSheet() {
-  if (sheets.length >= 5) return alert('Максимум 5 листов!'); // Ограничение
-  sheets.push({ elements: [] });
+  if (sheets.length >= 5) return alert('Максимум 5 листов!');
+  const sheetNumber = sheets.length + 1;
+  sheets.push({ 
+    elements: [],
+    name: `Лист ${sheetNumber}`
+  });
+  
   const tabs = document.querySelector('.tabs');
   tabs.insertBefore(createTab(sheets.length - 1), tabs.lastChild);
   switchSheet(sheets.length - 1);
 }
 
-// Добавляем кнопки для управления сеткой в #toolbar
-document.getElementById('toolbar').innerHTML += `
-  <button onclick="gridEnabled=!gridEnabled; renderSheet()">
-    ${gridEnabled ? 'Выключить сетку' : 'Включить сетку'}
-  </button>
-  <button onclick="snapToGrid=!snapToGrid">
-    Привязка: ${snapToGrid ? 'Вкл' : 'Выкл'}
-  </button>
-  <input type="number" value="${gridStep}" onchange="gridStep=parseInt(this.value); renderSheet()" min="10">
+// Инициализация UI
+document.getElementById('toolbar').innerHTML = `
+  <div class="tool-section">
+    <h3>Сетка</h3>
+    <button onclick="gridEnabled=!gridEnabled; renderSheet()" class="tool-btn">
+      ${gridEnabled ? 'Выключить сетку' : 'Включить сетку'}
+    </button>
+    <button onclick="snapToGrid=!snapToGrid" class="tool-btn">
+      Привязка: ${snapToGrid ? 'Вкл' : 'Выкл'}
+    </button>
+    <div>
+      <label>Шаг сетки:</label>
+      <input type="number" value="${gridStep}" 
+             onchange="gridStep=Math.max(10,parseInt(this.value)); renderSheet()" 
+             min="10" class="grid-input">
+    </div>
+  </div>
 `;
 
-// Инициализация первого листа
+// Стили для инструментов
+const style = document.createElement('style');
+style.textContent = `
+  .tool-section {
+    margin-bottom: 15px;
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
+  }
+  .tool-btn {
+    display: block;
+    margin: 5px 0;
+    padding: 8px;
+    width: 100%;
+  }
+  .grid-input {
+    width: 50px;
+    padding: 5px;
+  }
+`;
+document.head.appendChild(style);
+
+// Первый лист
 addSheet();
-renderSheet();
   </script>
 </body>
 </html>
