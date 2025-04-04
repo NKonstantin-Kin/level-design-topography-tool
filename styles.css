@@ -3,9 +3,8 @@ body {
   margin: 0;
   font-family: 'Arial', sans-serif;
   height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: #f5f5f5;
+  overflow: hidden;
+  background: #f0f0f0;
 }
 
 .app-container {
@@ -20,7 +19,7 @@ body {
   background: #2c3e50;
   gap: 10px;
   flex-wrap: wrap;
-  align-items: center;
+  color: white;
 }
 
 .tool-section {
@@ -39,6 +38,7 @@ button {
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.2s;
+  min-width: 80px;
 }
 
 button:hover {
@@ -47,33 +47,34 @@ button:hover {
 
 button.active {
   background: #1abc9c;
+  font-weight: bold;
 }
-/* Стили холста */
+
+/* Контейнер холста */
 .canvas-container {
   flex: 1;
   overflow: auto;
   background: #ecf0f1;
-  position: relative;
 }
 
 #canvas {
   display: block;
   background: white;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  margin: 20px auto;
 }
-
 /* Панель листов */
 .sheet-tabs {
   display: flex;
   background: #34495e;
   padding: 5px;
   align-items: center;
+  overflow-x: auto;
 }
 
 .tabs-container {
   display: flex;
   gap: 5px;
-  overflow-x: auto;
   padding: 0 5px;
 }
 
@@ -84,6 +85,7 @@ button.active {
   border: none;
   border-radius: 3px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .sheet-tab.active {
@@ -106,33 +108,18 @@ select {
   border: 1px solid #3d5166;
   border-radius: 4px;
 }
-/* Стили для элементов на холсте */
-.shape {
-  position: absolute;
-  cursor: move;
-}
 
-.control-point {
-  width: 10px;
-  height: 10px;
-  background: red;
-  border-radius: 50%;
-  position: absolute;
-  transform: translate(-50%, -50%);
-  cursor: pointer;
+/* Сетка */
+.grid {
+  background-image: 
+    linear-gradient(#e0e0e0 1px, transparent 1px),
+    linear-gradient(90deg, #e0e0e0 1px, transparent 1px);
+  background-size: 30px 30px;
 }
 
 /* Адаптивность */
 @media (max-width: 768px) {
-  .toolbar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
   .tool-section {
-    border-right: none;
-    border-bottom: 1px solid #3d5166;
-    padding-bottom: 8px;
-    margin-bottom: 8px;
+    flex-wrap: wrap;
   }
 }
