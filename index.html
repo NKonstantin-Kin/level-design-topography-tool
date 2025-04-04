@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Level Designer Tool</title>
+  <style>
+    body { margin: 0; font-family: Arial; overflow: hidden; }
+    #app { display: flex; height: 100vh; }
+    #toolbar { width: 200px; background: #f5f5f5; border-right: 1px solid #ddd; padding: 10px; }
+    #canvas-container { flex: 1; position: relative; overflow: auto; }
+    canvas { display: block; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    .tabs { display: flex; background: #eee; padding: 8px 8px 0; }
+    .tab { padding: 8px 16px; margin-right: 4px; background: #ddd; border-radius: 4px 4px 0 0; cursor: pointer; }
+    .tab.active { background: white; font-weight: bold; }
+    .tool-section { margin-bottom: 15px; }
+    button { padding: 8px; margin: 4px 0; width: 100%; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="toolbar">
+      <div class="tool-section">
+        <h3>Листы</h3>
+        <button id="new-sheet">+ Новый лист</button>
+      </div>
+      <div class="tool-section">
+        <h3>Сетка</h3>
+        <button id="toggle-grid">Сетка: Вкл</button>
+        <button id="toggle-snap">Привязка: Вкл</button>
+        <label>Шаг сетки: <input type="number" id="grid-step" value="20" min="10"></label>
+      </div>
+    </div>
+    <div id="canvas-container">
+      <div class="tabs" id="sheet-tabs"></div>
+      <canvas id="sheet"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // Инициализация
+    const canvas = document.getElementById('sheet');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 3000;
+    canvas.height = 2000;
+
+    let state = {
+      sheets: [],
+      currentSheet: 0,
+      grid: {
+        enabled: true,
+        snap: true,
+        step: 20,
+        color: '#ddd'
+      }
+    };
+
+    // 1. Рисуем сетку
+    function drawGrid() {
+      if (!state.grid.enabled) return;
+      ctx.strokeStyle = state.grid.color;
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= canvas.width; x += state.grid.step) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= canvas.height; y += state.grid.step) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+    }
+
+    // 2. Листы
+    function createSheet() {
+      if (state.sheets.length >= 5) return alert('Максимум 5 листов!');
+      const newSheet = {
+        id: Date.now(),
+        name: `Лист ${state.sheets.length + 1}`,
+        elements: []
+      };
+      state.sheets.push(newSheet);
+      renderTabs();
+      switchSheet(state.sheets.length - 1);
+      saveToLocalStorage();
+    }
+
+    function switchSheet(index) {
+      state.currentSheet = index;
+      renderCanvas();
+      renderTabs();
+    }
+
+    // 3. Сохранение
+    function saveToLocalStorage() {
+      localStorage.setItem('levelDesigner', JSON.stringify(state));
+    }
+
+    function loadFromLocalStorage() {
+      const saved = localStorage.getItem('levelDesigner');
+      if (saved) state = JSON.parse(saved);
+      if (state.sheets.length === 0) createSheet();
+      renderTabs();
+      renderCanvas();
+    }
+
+    // 4. Рендер
+    function renderCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGrid();
+    }
+
+    function renderTabs() {
+      const tabsContainer = document.getElementById('sheet-tabs');
+      tabsContainer.innerHTML = '';
+      state.sheets.forEach((sheet, index) => {
+        const tab = document.createElement('div');
+        tab.className = `tab ${index === state.currentSheet ? 'active' : ''}`;
+        tab.textContent = sheet.name;
+        tab.onclick = () => switchSheet(index);
+        tabsContainer.appendChild(tab);
+      });
+      const newTab = document.createElement('div');
+      newTab.className = 'tab';
+      newTab.textContent = '+';
+      newTab.onclick = createSheet;
+      tabsContainer.appendChild(newTab);
+    }
+
+    // 5. Обработчики
+    document.getElementById('new-sheet').addEventListener('click', createSheet);
+    document.getElementById('toggle-grid').addEventListener('click', function() {
+      state.grid.enabled = !state.grid.enabled;
+      this.textContent = `Сетка: ${state.grid.enabled ? 'Вкл' : 'Выкл'}`;
+      renderCanvas();
+    });
+    document.getElementById('toggle-snap').addEventListener('click', function() {
+      state.grid.snap = !state.grid.snap;
+      this.textContent = `Привязка: ${state.grid.snap ? 'Вкл' : 'Выкл'}`;
+    });
+    document.getElementById('grid-step').addEventListener('change', function(e) {
+      state.grid.step = Math.max(10, parseInt(e.target.value));
+      renderCanvas();
+    });
+
+    // Запуск
+    loadFromLocalStorage();
+  </script>
+</body>
+</html>
