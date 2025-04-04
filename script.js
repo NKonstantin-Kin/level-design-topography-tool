@@ -1,50 +1,52 @@
-document.addEventListener("DOMContentLoaded", function () {
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
+// Настройка Canvas
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let isDrawing = false;
+let currentTool = 'line';
+let currentColor = '#000000';
 
-    canvas.width = window.innerWidth * 0.9;
-    canvas.height = window.innerHeight * 0.8;
+// Размеры Canvas (большие, как у dgrm.net)
+canvas.width = 5000;
+canvas.height = 5000;
 
-    // Фон
-    function drawBackground() {
-        ctx.fillStyle = "#f8f8f8";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-
-    // Сетка
-    function drawGrid(gridSize = 50) {
-        ctx.strokeStyle = "#ddd";
-        ctx.lineWidth = 0.5;
-
-        for (let x = 0; x < canvas.width; x += gridSize) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, canvas.height);
-            ctx.stroke();
-        }
-
-        for (let y = 0; y < canvas.height; y += gridSize) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(canvas.width, y);
-            ctx.stroke();
-        }
-    }
-
-    // Рисование вручную
-    let drawing = false;
-    canvas.addEventListener("mousedown", () => drawing = true);
-    canvas.addEventListener("mouseup", () => drawing = false);
-    canvas.addEventListener("mousemove", draw);
-
-    function draw(event) {
-        if (!drawing) return;
-        ctx.fillStyle = "black";
-        ctx.beginPath();
-        ctx.arc(event.offsetX, event.offsetY, 2, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    drawBackground();
-    drawGrid();
+// Цвет из палитры
+document.getElementById('color-picker').addEventListener('input', (e) => {
+  currentColor = e.target.value;
 });
+
+// Выбор инструмента
+document.getElementById('tool-line').addEventListener('click', () => {
+  currentTool = 'line';
+});
+
+document.getElementById('tool-rect').addEventListener('click', () => {
+  currentTool = 'rect';
+});
+
+// Рисование на Canvas
+canvas.addEventListener('mousedown', startDrawing);
+canvas.addEventListener('mousemove', draw);
+canvas.addEventListener('mouseup', stopDrawing);
+
+function startDrawing(e) {
+  isDrawing = true;
+  ctx.beginPath();
+  ctx.moveTo(e.offsetX, e.offsetY);
+  ctx.strokeStyle = currentColor;
+  ctx.fillStyle = currentColor;
+}
+
+function draw(e) {
+  if (!isDrawing) return;
+  
+  if (currentTool === 'line') {
+    ctx.lineTo(e.offsetX, e.offsetY);
+    ctx.stroke();
+  } else if (currentTool === 'rect') {
+    // Прямоугольник будет рисоваться при отпускании кнопки мыши
+  }
+}
+
+function stopDrawing() {
+  isDrawing = false;
+}
