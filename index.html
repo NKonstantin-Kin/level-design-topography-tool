@@ -67,6 +67,32 @@ function renderSheet() {
   // Здесь позже будет отрисовка элементов листа
 }
 
+// Создание вкладки для листа
+function createTab(index) {
+  const tab = document.createElement('button');
+  tab.className = 'tab';
+  tab.textContent = `Лист ${index + 1}`;
+  tab.onclick = () => switchSheet(index);
+  return tab;
+}
+
+// Переключение между листами
+function switchSheet(index) {
+  currentSheet = index;
+  document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+  document.querySelectorAll('.tab')[index].classList.add('active');
+  renderSheet();
+}
+
+// Добавление нового листа
+function addSheet() {
+  if (sheets.length >= 5) return alert('Максимум 5 листов!'); // Ограничение
+  sheets.push({ elements: [] });
+  const tabs = document.querySelector('.tabs');
+  tabs.insertBefore(createTab(sheets.length - 1), tabs.lastChild);
+  switchSheet(sheets.length - 1);
+}
+
 // Добавляем кнопки для управления сеткой в #toolbar
 document.getElementById('toolbar').innerHTML += `
   <button onclick="gridEnabled=!gridEnabled; renderSheet()">
@@ -79,17 +105,8 @@ document.getElementById('toolbar').innerHTML += `
 `;
 
 // Инициализация первого листа
-function addSheet() {
-  if (sheets.length >= 5) return alert('Максимум 5 листов!'); // Ограничение
-  sheets.push({ elements: [] });
-  const tabs = document.querySelector('.tabs');
-  tabs.insertBefore(createTab(sheets.length - 1), tabs.lastChild);
-  switchSheet(sheets.length - 1);
-}
-
-// Остальные функции (createTab, switchSheet) остаются без изменений
-addSheet(); // Создаём первый лист
-renderSheet(); // Первая отрисовка
+addSheet();
+renderSheet();
   </script>
 </body>
 </html>
