@@ -2,7 +2,6 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Level Designer</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -10,9 +9,11 @@
   <div class="toolbar">
     <button id="tool-line">Линия</button>
     <button id="tool-rect">Прямоугольник</button>
-    <button id="tool-save">Сохранить</button>
-    <button id="tool-load">Загрузить</button>
+    <button id="tool-text">Текст</button>
     <input type="color" id="color-picker" value="#000000">
+    <input type="color" id="grid-color" value="#e0e0e0" title="Цвет сетки">
+    <button id="save-png">Сохранить PNG</button>
+    <button id="load-json">Загрузить JSON</button>
   </div>
   <div class="canvas-container">
     <canvas id="canvas"></canvas>
