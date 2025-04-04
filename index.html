@@ -2,22 +2,84 @@
 <html>
 <head>
   <title>Level Designer</title>
-  <link rel="stylesheet" href="styles.css">
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #canvas { 
+      display: block; 
+      background: white;
+      width: 100vw;
+      height: 100vh;
+    }
+    #tools {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: #2c3e50;
+      padding: 10px;
+      color: white;
+      z-index: 100;
+    }
+    button {
+      display: block;
+      margin: 5px 0;
+      padding: 8px;
+      background: #34495e;
+      color: white;
+      border: none;
+      border-radius: 4px;
+    }
+  </style>
 </head>
 <body>
   <div id="tools">
-    <button id="line-btn">1. Линия</button>
-    <button id="rect-btn">2. Прямоугольник</button>
-    <button id="circle-btn">3. Круг</button>
-    <button id="text-btn">4. Текст</button>
-    <input type="color" id="color-picker" value="#0000ff" title="Цвет">
-    <input type="text" id="text-input" placeholder="Текст...">
-    <button id="style-toggle">5. Рукописный стиль</button>
-    <button id="clear-btn">Очистить (Del)</button>
-    <button id="save-btn">Сохранить PNG</button>
+    <button id="test-btn">Тест работоспособности</button>
   </div>
   <canvas id="canvas"></canvas>
-  <script src="https://cdn.jsdelivr.net/npm/roughjs@4.5.2/bundled/rough.min.js"></script>
-  <script src="script.js"></script>
+
+  <script>
+    // Минимальный тест
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Установка корректных размеров
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      drawTest();
+    }
+    
+    // Тестовая отрисовка
+    function drawTest() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // 1. Рисуем красный квадрат
+      ctx.fillStyle = 'red';
+      ctx.fillRect(50, 50, 100, 100);
+      
+      // 2. Рисуем сетку
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.lineWidth = 1;
+      const step = 30;
+      
+      for (let x = 0; x < canvas.width; x += step) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      
+      for (let y = 0; y < canvas.height; y += step) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+    }
+
+    // Инициализация
+    document.getElementById('test-btn').addEventListener('click', drawTest);
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+  </script>
 </body>
 </html>
