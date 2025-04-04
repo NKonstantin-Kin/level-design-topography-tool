@@ -5,7 +5,8 @@ let currentTool = 'line';
 let currentColor = '#000000';
 let elements = []; // Все объекты
 let selectedElement = null; // Выбранный элемент
-let hoveredPoint = null; // Наведённая точка (для редактирования)
+let hoveredPoint = null; // Наведённая точка
+let isDragging = false;
 
 // Размеры Canvas
 canvas.width = 5000;
@@ -25,7 +26,7 @@ document.getElementById('tool-rect').addEventListener('click', () => {
   currentTool = 'rect';
 });
 
-// Сетка (всегда видна)
+// Сетка (теперь видна всегда!)
 function drawGrid(step = 30, color = '#e0e0e0') {
   ctx.strokeStyle = color;
   ctx.lineWidth = 0.5;
@@ -43,10 +44,17 @@ function drawGrid(step = 30, color = '#e0e0e0') {
   }
 }
 
+// Фон холста (белый)
+function drawBackground() {
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
 // Рисуем все объекты
 function redrawCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawGrid(); // Сетка рисуется первой
+  drawBackground(); // Белый фон
+  drawGrid(); // Сетка сверху
   
   elements.forEach(el => {
     ctx.strokeStyle = el.color;
@@ -59,7 +67,7 @@ function redrawCanvas() {
       ctx.lineTo(el.x2, el.y2);
       ctx.stroke();
       
-      // Точки (если элемент выбран)
+      // Точки управления (если выбрана)
       if (el === selectedElement) {
         drawControlPoint(el.x1, el.y1);
         drawControlPoint(el.x2, el.y2);
@@ -70,6 +78,12 @@ function redrawCanvas() {
       ctx.rect(el.x, el.y, el.width, el.height);
       ctx.fill();
       ctx.stroke();
+      
+      // Точки управления (если выбран)
+      if (el === selectedElement) {
+        drawControlPoint(el.x, el.y); // Левый верхний угол
+        drawControlPoint(el.x + el.width, el.y + el.height); // Правый нижний
+      }
     }
   });
 }
@@ -82,31 +96,41 @@ function drawControlPoint(x, y) {
   ctx.fill();
 }
 
-// Проверяем, попадает ли курсор в точку
-function isPointInElement(x, y, el) {
+// Проверяем, кликнули ли на точку
+function getHoveredPoint(x, y, el) {
+  const hitRadius = 10;
+  
   if (el.type === 'line') {
-    // Проверяем точки линии
-    const hitRadius = 10;
+    // Проверяем концы линии
     const dx1 = x - el.x1;
     const dy1 = y - el.y1;
     const dx2 = x - el.x2;
     const dy2 = y - el.y2;
     if (dx1 * dx1 + dy1 * dy1 < hitRadius * hitRadius) return 'p1';
     if (dx2 * dx2 + dy2 * dy2 < hitRadius * hitRadius) return 'p2';
+  } else if (el.type === 'rect') {
+    // Проверяем углы прямоугольника
+    const corners = [
+      { x: el.x, y: el.y, id: 'tl' }, // Верхний левый
+      { x: el.x + el.width, y: el.y + el.height, id: 'br' } // Нижний правый
+    ];
+    for (const corner of corners) {
+      const dx = x - corner.x;
+      const dy = y - corner.y;
+      if (dx * dx + dy * dy < hitRadius * hitRadius) return corner.id;
+    }
   }
   return null;
 }
 
 // Обработчики событий
-let isDragging = false;
-
 canvas.addEventListener('mousedown', (e) => {
   const x = e.offsetX;
   const y = e.offsetY;
   
-  // Проверяем, кликнули ли на точку
+  // Проверяем, кликнули ли на точку существующего элемента
   for (const el of elements) {
-    const point = isPointInElement(x, y, el);
+    const point = getHoveredPoint(x, y, el);
     if (point) {
       selectedElement = el;
       hoveredPoint = point;
@@ -122,13 +146,12 @@ canvas.addEventListener('mousedown', (e) => {
       type: 'line',
       x1: x,
       y1: y,
-      x2: x, // Начально линия — точка
+      x2: x,
       y2: y,
       color: currentColor
     });
     selectedElement = elements[elements.length - 1];
     hoveredPoint = 'p2'; // Редактируем вторую точку
-    isDragging = true;
   } else if (currentTool === 'rect') {
     elements.push({
       type: 'rect',
@@ -139,9 +162,10 @@ canvas.addEventListener('mousedown', (e) => {
       color: currentColor
     });
     selectedElement = elements[elements.length - 1];
-    isDragging = true;
+    hoveredPoint = 'br'; // Редактируем правый нижний угол
   }
   
+  isDragging = true;
   redrawCanvas();
 });
 
@@ -159,8 +183,15 @@ canvas.addEventListener('mousemove', (e) => {
         selectedElement.y2 = y;
       }
     } else if (selectedElement.type === 'rect') {
-      selectedElement.width = x - selectedElement.x;
-      selectedElement.height = y - selectedElement.y;
+      if (hoveredPoint === 'tl') {
+        selectedElement.width += selectedElement.x - x;
+        selectedElement.height += selectedElement.y - y;
+        selectedElement.x = x;
+        selectedElement.y = y;
+      } else if (hoveredPoint === 'br') {
+        selectedElement.width = x - selectedElement.x;
+        selectedElement.height = y - selectedElement.y;
+      }
     }
     redrawCanvas();
   }
@@ -171,10 +202,6 @@ canvas.addEventListener('mouseup', () => {
   hoveredPoint = null;
 });
 
-canvas.addEventListener('mouseleave', () => {
-  isDragging = false;
-  hoveredPoint = null;
-});
-
 // Первая отрисовка
-redrawCanvas();
+drawBackground();
+drawGrid();
