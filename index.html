@@ -6,13 +6,18 @@
 </head>
 <body>
   <div id="tools">
-    <button id="line-btn">Линия</button>
-    <button id="rect-btn">Прямоугольник</button>
-    <button id="circle-btn">Круг</button>
-    <input type="color" id="color-picker" value="#0000ff">
-    <button id="clear-btn">Очистить холст</button>
+    <button id="line-btn">1. Линия</button>
+    <button id="rect-btn">2. Прямоугольник</button>
+    <button id="circle-btn">3. Круг</button>
+    <button id="text-btn">4. Текст</button>
+    <input type="color" id="color-picker" value="#0000ff" title="Цвет">
+    <input type="text" id="text-input" placeholder="Текст...">
+    <button id="style-toggle">5. Рукописный стиль</button>
+    <button id="clear-btn">Очистить (Del)</button>
+    <button id="save-btn">Сохранить PNG</button>
   </div>
   <canvas id="canvas"></canvas>
+  <script src="https://cdn.jsdelivr.net/npm/roughjs@4.5.2/bundled/rough.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
