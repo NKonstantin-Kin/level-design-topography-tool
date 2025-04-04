@@ -6,30 +6,32 @@
   <title>Level Designer</title>
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/roughjs@4.5.2/bundled/rough.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/leader-line@1.0.5/leader-line.min.js"></script>
 </head>
 <body>
   <div class="app-container">
     <!-- Панель инструментов -->
     <div class="toolbar">
       <div class="tool-section">
-        <button id="tool-select" class="active">Выбор</button>
-        <button id="tool-line">Линия</button>
-        <button id="tool-rect">Прямоугольник</button>
-        <button id="tool-circle">Круг</button>
-        <button id="tool-text">Текст</button>
+        <button id="tool-select" class="active">1. Выбор</button>
+        <button id="tool-line">2. Линия</button>
+        <button id="tool-rect">3. Прямоугольник</button>
+        <button id="tool-circle">4. Круг</button>
+        <button id="tool-text">5. Текст</button>
       </div>
       <div class="tool-section">
-        <input type="color" id="stroke-color" value="#0000ff" title="Цвет контура">
-        <input type="color" id="fill-color" value="#00000000" title="Цвет заливки">
+        <span>Контур:</span>
+        <input type="color" id="stroke-color" value="#0000ff">
+        <span>Заливка:</span>
+        <input type="color" id="fill-color" value="#00000000">
         <select id="dash-style">
           <option value="solid">Сплошная</option>
           <option value="dashed">Пунктир</option>
         </select>
+        <button id="toggle-style">Рукописный стиль</button>
       </div>
       <div class="tool-section">
-        <button id="delete-btn">Удалить (Del)</button>
-        <button id="save-png">Сохранить PNG</button>
+        <button id="delete-btn">Del. Удалить</button>
+        <button id="save-png">Ctrl+S. Сохранить</button>
       </div>
     </div>
 
@@ -40,7 +42,7 @@
 
     <!-- Панель листов -->
     <div class="sheet-tabs">
-      <button id="add-sheet">+ Новый лист</button>
+      <button id="add-sheet">Ctrl+M. Новый лист</button>
       <div class="tabs-container" id="sheet-tabs"></div>
     </div>
   </div>
