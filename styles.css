@@ -18,31 +18,43 @@ body {
   border-radius: 5px;
   color: white;
   z-index: 100;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 300px;
 }
 
 button, input {
-  display: block;
-  margin: 5px 0;
-  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 4px;
 }
 
 button {
-  padding: 8px;
   background: #34495e;
   color: white;
-  border: none;
-  border-radius: 3px;
   cursor: pointer;
+  min-width: 120px;
 }
 
 button:hover {
   background: #3d5166;
 }
 
-#clear-btn {
+button#clear-btn {
   background: #e74c3c;
 }
 
-#clear-btn:hover {
-  background: #c0392b;
+button#style-toggle.active {
+  background: #1abc9c;
+}
+
+input[type="color"] {
+  width: 50px;
+  height: 40px;
+  padding: 2px;
+}
+
+input[type="text"] {
+  flex-grow: 1;
 }
