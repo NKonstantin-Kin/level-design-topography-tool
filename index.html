@@ -3,12 +3,17 @@
 <head>
   <title>Level Designer</title>
   <style>
-    body { margin: 0; overflow: hidden; }
-    #canvas { 
-      display: block; 
+    body { 
+      margin: 0;
+      font-family: Arial;
+      overflow: hidden;
+      background: #f0f0f0;
+    }
+    #canvas {
+      display: block;
       background: white;
-      width: 100vw;
-      height: 100vh;
+      margin: 20px auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
     #tools {
       position: fixed;
@@ -16,58 +21,60 @@
       left: 10px;
       background: #2c3e50;
       padding: 10px;
+      border-radius: 5px;
       color: white;
-      z-index: 100;
     }
     button {
       display: block;
       margin: 5px 0;
-      padding: 8px;
+      padding: 8px 12px;
       background: #34495e;
       color: white;
       border: none;
       border-radius: 4px;
+      cursor: pointer;
+      min-width: 120px;
+    }
+    button:hover {
+      background: #3d5166;
     }
   </style>
 </head>
 <body>
   <div id="tools">
-    <button id="test-btn">Тест работоспособности</button>
+    <button id="line-btn">Линия</button>
+    <button id="rect-btn">Прямоугольник</button>
+    <input type="color" id="color-picker" value="#0000ff">
   </div>
   <canvas id="canvas"></canvas>
 
   <script>
-    // Минимальный тест
+    // Инициализация Canvas
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    
-    // Установка корректных размеров
-    function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      drawTest();
-    }
-    
-    // Тестовая отрисовка
-    function drawTest() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // 1. Рисуем красный квадрат
-      ctx.fillStyle = 'red';
-      ctx.fillRect(50, 50, 100, 100);
-      
-      // 2. Рисуем сетку
+    canvas.width = 800;
+    canvas.height = 600;
+
+    // Состояние приложения
+    let currentTool = 'line';
+    let currentColor = '#0000ff';
+    let isDrawing = false;
+    let startX, startY;
+    const elements = [];
+
+    // Рисование сетки
+    function drawGrid() {
       ctx.strokeStyle = '#e0e0e0';
       ctx.lineWidth = 1;
       const step = 30;
-      
+
       for (let x = 0; x < canvas.width; x += step) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, canvas.height);
         ctx.stroke();
       }
-      
+
       for (let y = 0; y < canvas.height; y += step) {
         ctx.beginPath();
         ctx.moveTo(0, y);
@@ -76,10 +83,91 @@
       }
     }
 
-    // Инициализация
-    document.getElementById('test-btn').addEventListener('click', drawTest);
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
+    // Перерисовка всех элементов
+    function redraw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGrid();
+
+      elements.forEach(el => {
+        ctx.strokeStyle = el.color;
+        ctx.lineWidth = 2;
+
+        if (el.type === 'line') {
+          ctx.beginPath();
+          ctx.moveTo(el.x1, el.y1);
+          ctx.lineTo(el.x2, el.y2);
+          ctx.stroke();
+        } else if (el.type === 'rect') {
+          ctx.strokeRect(el.x, el.y, el.width, el.height);
+        }
+      });
+    }
+
+    // Обработчики событий
+    canvas.addEventListener('mousedown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      isDrawing = true;
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+
+      if (currentTool === 'line') {
+        elements.push({
+          type: 'line',
+          x1: startX,
+          y1: startY,
+          x2: startX,
+          y2: startY,
+          color: currentColor
+        });
+      } else if (currentTool === 'rect') {
+        elements.push({
+          type: 'rect',
+          x: startX,
+          y: startY,
+          width: 0,
+          height: 0,
+          color: currentColor
+        });
+      }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (!isDrawing) return;
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      const currentElement = elements[elements.length - 1];
+
+      if (currentTool === 'line') {
+        currentElement.x2 = mouseX;
+        currentElement.y2 = mouseY;
+      } else if (currentTool === 'rect') {
+        currentElement.width = mouseX - startX;
+        currentElement.height = mouseY - startY;
+      }
+
+      redraw();
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      isDrawing = false;
+    });
+
+    // Управление инструментами
+    document.getElementById('line-btn').addEventListener('click', () => {
+      currentTool = 'line';
+    });
+
+    document.getElementById('rect-btn').addEventListener('click', () => {
+      currentTool = 'rect';
+    });
+
+    document.getElementById('color-picker').addEventListener('input', (e) => {
+      currentColor = e.target.value;
+    });
+
+    // Первая отрисовка
+    drawGrid();
   </script>
 </body>
 </html>
