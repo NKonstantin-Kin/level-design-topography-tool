@@ -1,19 +1,25 @@
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+
+// Настройка размеров
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  redraw();
+}
+window.addEventListener('resize', resizeCanvas);
 
 // Состояние приложения
 const state = {
   tool: 'line',
   color: '#0000ff',
-  elements: [], // Здесь храним все нарисованные элементы
+  elements: [],
   isDrawing: false,
   startX: 0,
   startY: 0
 };
 
-// Сетка (остаётся без изменений)
+// Сетка
 function drawGrid() {
   ctx.strokeStyle = '#e0e0e0';
   ctx.lineWidth = 1;
@@ -56,25 +62,25 @@ function redraw() {
 
 // Обработчики событий
 canvas.addEventListener('mousedown', (e) => {
+  const rect = canvas.getBoundingClientRect();
   state.isDrawing = true;
-  state.startX = e.clientX;
-  state.startY = e.clientY;
+  state.startX = e.clientX - rect.left;
+  state.startY = e.clientY - rect.top;
 
-  // Создаем новый элемент
   if (state.tool === 'line') {
     state.elements.push({
       type: 'line',
-      x1: e.clientX,
-      y1: e.clientY,
-      x2: e.clientX,
-      y2: e.clientY,
+      x1: state.startX,
+      y1: state.startY,
+      x2: state.startX,
+      y2: state.startY,
       color: state.color
     });
   } else if (state.tool === 'rect') {
     state.elements.push({
       type: 'rect',
-      x: e.clientX,
-      y: e.clientY,
+      x: state.startX,
+      y: state.startY,
       width: 0,
       height: 0,
       color: state.color
@@ -84,25 +90,27 @@ canvas.addEventListener('mousedown', (e) => {
 
 canvas.addEventListener('mousemove', (e) => {
   if (!state.isDrawing) return;
-
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
   const currentElement = state.elements[state.elements.length - 1];
 
   if (state.tool === 'line') {
-    currentElement.x2 = e.clientX;
-    currentElement.y2 = e.clientY;
+    currentElement.x2 = mouseX;
+    currentElement.y2 = mouseY;
   } else if (state.tool === 'rect') {
-    currentElement.width = e.clientX - state.startX;
-    currentElement.height = e.clientY - state.startY;
+    currentElement.width = mouseX - state.startX;
+    currentElement.height = mouseY - state.startY;
   }
 
-  redraw(); // Перерисовываем всё
+  redraw();
 });
 
 canvas.addEventListener('mouseup', () => {
   state.isDrawing = false;
 });
 
-// Инициализация
+// Управление интерфейсом
 document.getElementById('line-btn').addEventListener('click', () => {
   state.tool = 'line';
 });
@@ -115,5 +123,10 @@ document.getElementById('color-picker').addEventListener('input', (e) => {
   state.color = e.target.value;
 });
 
-// Первая отрисовка
-drawGrid();
+document.getElementById('clear-btn').addEventListener('click', () => {
+  state.elements = [];
+  redraw();
+});
+
+// Инициализация
+resizeCanvas();
