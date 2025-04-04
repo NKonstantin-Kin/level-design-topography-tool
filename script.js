@@ -4,11 +4,30 @@ const ctx = canvas.getContext('2d');
 let isDrawing = false;
 let currentTool = 'line';
 let currentColor = '#000000';
+let startX, startY; // Для фигур
+
+// Размеры Canvas (5000x5000)
+canvas.width = 5000;
+canvas.height = 5000;
+
+// Цвет из палитры
+document.getElementById('color-picker').addEventListener('input', (e) => {
+  currentColor = e.target.value;
+});
+
+// Выбор инструмента
+document.getElementById('tool-line').addEventListener('click', () => {
+  currentTool = 'line';
+});
+
+document.getElementById('tool-rect').addEventListener('click', () => {
+  currentTool = 'rect';
+});
 
 // Рисуем сетку
 function drawGrid(step = 30, color = '#e0e0e0') {
   ctx.strokeStyle = color;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 0.5;
   
   // Вертикальные линии
   for (let x = 0; x < canvas.width; x += step) {
@@ -27,51 +46,40 @@ function drawGrid(step = 30, color = '#e0e0e0') {
   }
 }
 
-// Вызываем при загрузке
+// Отрисовка при загрузке
 drawGrid();
 
-// Размеры Canvas (большие, как у dgrm.net)
-canvas.width = 5000;
-canvas.height = 5000;
-
-// Цвет из палитры
-document.getElementById('color-picker').addEventListener('input', (e) => {
-  currentColor = e.target.value;
-});
-
-// Выбор инструмента
-document.getElementById('tool-line').addEventListener('click', () => {
-  currentTool = 'line';
-});
-
-document.getElementById('tool-rect').addEventListener('click', () => {
-  currentTool = 'rect';
-});
-
 // Рисование на Canvas
-canvas.addEventListener('mousedown', startDrawing);
-canvas.addEventListener('mousemove', draw);
-canvas.addEventListener('mouseup', stopDrawing);
-
-function startDrawing(e) {
+canvas.addEventListener('mousedown', (e) => {
   isDrawing = true;
-  ctx.beginPath();
-  ctx.moveTo(e.offsetX, e.offsetY);
-  ctx.strokeStyle = currentColor;
-  ctx.fillStyle = currentColor;
-}
+  startX = e.offsetX;
+  startY = e.offsetY;
+});
 
-function draw(e) {
+canvas.addEventListener('mousemove', (e) => {
   if (!isDrawing) return;
   
+  // Очищаем холст и рисуем сетку заново
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawGrid();
+  
+  // Временная линия/прямоугольник (пока не отпустили кнопку мыши)
+  ctx.strokeStyle = currentColor;
+  ctx.fillStyle = currentColor + '40'; // Прозрачная заливка
+  
   if (currentTool === 'line') {
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
     ctx.lineTo(e.offsetX, e.offsetY);
     ctx.stroke();
   } else if (currentTool === 'rect') {
-    // Прямоугольник будет рисоваться при отпускании кнопки мыши
+    ctx.beginPath();
+    ctx.rect(startX, startY, e.offsetX - startX, e.offsetY - startY);
+    ctx.fill();
+    ctx.stroke();
   }
-}
+});
 
-function stopDrawing() {
+canvas.addEventListener('mouseup', () => {
   isDrawing = false;
-}
+});
