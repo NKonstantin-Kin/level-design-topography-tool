@@ -2,235 +2,61 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <title>Топографический редактор</title>
+  <title>Level Designer Tool</title>
   <style>
-    body { 
-      margin: 0;
-      font-family: Arial;
-      background: #f5f5f5;
-      overflow: hidden;
-    }
-    #canvas {
-      display: block;
-      background: white;
-      margin: 20px auto;
-      box-shadow: 0 0 15px rgba(0,0,0,0.1);
-    }
-    #toolbar {
-      position: fixed;
-      top: 15px;
-      left: 15px;
-      background: #2c3e50;
-      padding: 15px;
-      border-radius: 10px;
-      color: white;
-      box-shadow: 0 0 10px rgba(0,0,0,0.3);
-    }
-    .tool-btn {
-      display: block;
-      margin: 10px 0;
-      padding: 12px;
-      width: 150px;
-      background: #34495e;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 16px;
-      transition: all 0.2s;
-    }
-    .tool-btn:hover {
-      background: #3d5166;
-      transform: translateY(-2px);
-    }
-    .tool-btn.active {
-      background: #1abc9c;
-      font-weight: bold;
-    }
-    #color-picker {
-      width: 100%;
-      height: 50px;
-      margin: 15px 0;
-      cursor: pointer;
-    }
+    body { margin: 0; font-family: Arial; }
+    .tabs { display: flex; background: #f0f0f0; padding: 8px; }
+    .tab { padding: 8px 16px; margin-right: 4px; cursor: pointer; }
+    .tab.active { background: #ddd; }
+    #toolbar { width: 200px; height: 100vh; float: left; background: #eee; }
+    #sheet { margin-left: 200px; border: 1px solid #ccc; }
   </style>
 </head>
 <body>
-  <div id="toolbar">
-    <h2 style="margin-top: 0; text-align: center;">Инструменты</h2>
-    <button id="line-btn" class="tool-btn active">✏️ Линия</button>
-    <button id="rect-btn" class="tool-btn">⬜ Прямоугольник</button>
-    <button id="circle-btn" class="tool-btn">🔵 Круг</button>
-    <input type="color" id="color-picker" value="#0066ff">
-    <button id="clear-btn" class="tool-btn">❌ Очистить</button>
+  <div class="tabs">
+    <button class="tab active" onclick="switchSheet(0)">Лист 1</button>
+    <button class="tab" onclick="addSheet()">+ Новый лист</button>
   </div>
-
-  <canvas id="canvas"></canvas>
+  <div id="toolbar">
+    <!-- Инструменты будут здесь -->
+  </div>
+  <canvas id="sheet" width="1600" height="1200"></canvas>
 
   <script>
-    // ========== КОНФИГУРАЦИЯ ==========
-    const CONFIG = {
-      GRID_SIZE: 30,
-      GRID_COLOR: '#e0e0e0',
-      CANVAS_WIDTH: 2500,
-      CANVAS_HEIGHT: 1500
-    };
+    let sheets = []; // Массив листов
+    let currentSheet = 0;
 
-    // ========== ИНИЦИАЛИЗАЦИЯ ==========
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = CONFIG.CANVAS_WIDTH;
-    canvas.height = CONFIG.CANVAS_HEIGHT;
-
-    const state = {
-      tool: 'line',
-      color: '#0066ff',
-      elements: [],
-      isDrawing: false,
-      startX: 0,
-      startY: 0
-    };
-
-    // ========== ОСНОВНЫЕ ФУНКЦИИ ==========
-    function drawGrid() {
-      ctx.strokeStyle = CONFIG.GRID_COLOR;
-      ctx.lineWidth = 1;
-      
-      // Вертикальные линии
-      for (let x = 0; x < canvas.width; x += CONFIG.GRID_SIZE) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
-      }
-      
-      // Горизонтальные линии
-      for (let y = 0; y < canvas.height; y += CONFIG.GRID_SIZE) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-        ctx.stroke();
-      }
+    function addSheet() {
+      sheets.push({ elements: [] });
+      const tabs = document.querySelector('.tabs');
+      tabs.insertBefore(createTab(sheets.length - 1), tabs.lastChild);
+      switchSheet(sheets.length - 1);
     }
 
-    function redraw() {
+    function createTab(index) {
+      const tab = document.createElement('button');
+      tab.className = 'tab';
+      tab.textContent = `Лист ${index + 1}`;
+      tab.onclick = () => switchSheet(index);
+      return tab;
+    }
+
+    function switchSheet(index) {
+      currentSheet = index;
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+      document.querySelectorAll('.tab')[index].classList.add('active');
+      renderSheet();
+    }
+
+    function renderSheet() {
+      const canvas = document.getElementById('sheet');
+      const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawGrid();
-
-      state.elements.forEach(el => {
-        ctx.strokeStyle = el.color;
-        ctx.lineWidth = 2;
-
-        if (el.type === 'line') {
-          ctx.beginPath();
-          ctx.moveTo(el.x1, el.y1);
-          ctx.lineTo(el.x2, el.y2);
-          ctx.stroke();
-        } else if (el.type === 'rect') {
-          ctx.strokeRect(el.x, el.y, el.width, el.height);
-        } else if (el.type === 'circle') {
-          ctx.beginPath();
-          ctx.arc(el.x, el.y, el.radius, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-      });
+      // Здесь будет отрисовка элементов текущего листа
     }
 
-    // ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
-    canvas.addEventListener('mousedown', (e) => {
-      const rect = canvas.getBoundingClientRect();
-      state.isDrawing = true;
-      state.startX = e.clientX - rect.left;
-      state.startY = e.clientY - rect.top;
-
-      if (state.tool === 'line') {
-        state.elements.push({
-          type: 'line',
-          x1: state.startX,
-          y1: state.startY,
-          x2: state.startX,
-          y2: state.startY,
-          color: state.color
-        });
-      } else if (state.tool === 'rect') {
-        state.elements.push({
-          type: 'rect',
-          x: state.startX,
-          y: state.startY,
-          width: 0,
-          height: 0,
-          color: state.color
-        });
-      } else if (state.tool === 'circle') {
-        state.elements.push({
-          type: 'circle',
-          x: state.startX,
-          y: state.startY,
-          radius: 0,
-          color: state.color
-        });
-      }
-    });
-
-    canvas.addEventListener('mousemove', (e) => {
-      if (!state.isDrawing) return;
-      
-      const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-      const currentElement = state.elements[state.elements.length - 1];
-
-      if (state.tool === 'line') {
-        currentElement.x2 = mouseX;
-        currentElement.y2 = mouseY;
-      } else if (state.tool === 'rect') {
-        currentElement.width = mouseX - state.startX;
-        currentElement.height = mouseY - state.startY;
-      } else if (state.tool === 'circle') {
-        currentElement.radius = Math.sqrt(
-          Math.pow(mouseX - state.startX, 2) + 
-          Math.pow(mouseY - state.startY, 2)
-        );
-      }
-
-      redraw();
-    });
-
-    canvas.addEventListener('mouseup', () => {
-      state.isDrawing = false;
-    });
-
-    // ========== УПРАВЛЕНИЕ ИНТЕРФЕЙСОМ ==========
-    document.getElementById('line-btn').addEventListener('click', function() {
-      state.tool = 'line';
-      document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-      this.classList.add('active');
-    });
-
-    document.getElementById('rect-btn').addEventListener('click', function() {
-      state.tool = 'rect';
-      document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-      this.classList.add('active');
-    });
-
-    document.getElementById('circle-btn').addEventListener('click', function() {
-      state.tool = 'circle';
-      document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-      this.classList.add('active');
-    });
-
-    document.getElementById('color-picker').addEventListener('input', (e) => {
-      state.color = e.target.value;
-    });
-
-    document.getElementById('clear-btn').addEventListener('click', () => {
-      state.elements = [];
-      redraw();
-    });
-
-    // ========== ЗАПУСК ==========
-    drawGrid();
+    // Инициализация
+    addSheet(); // Первый лист по умолчанию
   </script>
 </body>
 </html>
