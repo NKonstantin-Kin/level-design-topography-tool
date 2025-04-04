@@ -4,9 +4,10 @@ const ctx = canvas.getContext('2d');
 let isDrawing = false;
 let currentTool = 'line';
 let currentColor = '#000000';
-let startX, startY; // Для фигур
+let startX, startY;
+let elements = []; // Массив для хранения объектов
 
-// Размеры Canvas (5000x5000)
+// Размеры Canvas
 canvas.width = 5000;
 canvas.height = 5000;
 
@@ -24,20 +25,16 @@ document.getElementById('tool-rect').addEventListener('click', () => {
   currentTool = 'rect';
 });
 
-// Рисуем сетку
+// Сетка
 function drawGrid(step = 30, color = '#e0e0e0') {
   ctx.strokeStyle = color;
   ctx.lineWidth = 0.5;
-  
-  // Вертикальные линии
   for (let x = 0; x < canvas.width; x += step) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
     ctx.lineTo(x, canvas.height);
     ctx.stroke();
   }
-  
-  // Горизонтальные линии
   for (let y = 0; y < canvas.height; y += step) {
     ctx.beginPath();
     ctx.moveTo(0, y);
@@ -46,10 +43,31 @@ function drawGrid(step = 30, color = '#e0e0e0') {
   }
 }
 
+// Перерисовка всех объектов
+function redrawCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawGrid();
+  elements.forEach(el => {
+    ctx.strokeStyle = el.color;
+    ctx.fillStyle = el.color + '40';
+    if (el.type === 'line') {
+      ctx.beginPath();
+      ctx.moveTo(el.x1, el.y1);
+      ctx.lineTo(el.x2, el.y2);
+      ctx.stroke();
+    } else if (el.type === 'rect') {
+      ctx.beginPath();
+      ctx.rect(el.x, el.y, el.width, el.height);
+      ctx.fill();
+      ctx.stroke();
+    }
+  });
+}
+
 // Отрисовка при загрузке
 drawGrid();
 
-// Рисование на Canvas
+// Рисование
 canvas.addEventListener('mousedown', (e) => {
   isDrawing = true;
   startX = e.offsetX;
@@ -59,13 +77,13 @@ canvas.addEventListener('mousedown', (e) => {
 canvas.addEventListener('mousemove', (e) => {
   if (!isDrawing) return;
   
-  // Очищаем холст и рисуем сетку заново
+  // Временный объект (пока не отпустили кнопку мыши)
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
+  redrawCanvas();
   
-  // Временная линия/прямоугольник (пока не отпустили кнопку мыши)
   ctx.strokeStyle = currentColor;
-  ctx.fillStyle = currentColor + '40'; // Прозрачная заливка
+  ctx.fillStyle = currentColor + '40';
   
   if (currentTool === 'line') {
     ctx.beginPath();
@@ -80,6 +98,30 @@ canvas.addEventListener('mousemove', (e) => {
   }
 });
 
-canvas.addEventListener('mouseup', () => {
+canvas.addEventListener('mouseup', (e) => {
+  if (!isDrawing) return;
   isDrawing = false;
+  
+  // Сохраняем объект в массив
+  if (currentTool === 'line') {
+    elements.push({
+      type: 'line',
+      x1: startX,
+      y1: startY,
+      x2: e.offsetX,
+      y2: e.offsetY,
+      color: currentColor
+    });
+  } else if (currentTool === 'rect') {
+    elements.push({
+      type: 'rect',
+      x: startX,
+      y: startY,
+      width: e.offsetX - startX,
+      height: e.offsetY - startY,
+      color: currentColor
+    });
+  }
+  
+  redrawCanvas();
 });
