@@ -1,41 +1,65 @@
-// Настройка Canvas
+// Конфигурация
+const CONFIG = {
+  GRID_SIZE: 30,
+  GRID_COLOR: '#e0e0e0',
+  BACKGROUND_COLORS: {
+    light: '#ffffff',
+    gray: '#f0f0f0',
+    dark: '#333333',
+    paper: '#f5e7c6'
+  }
+};
+
+// Инициализация Canvas
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-let currentTool = 'line';
-let currentColor = '#000000';
-let elements = []; // Все объекты
-let selectedElement = null; // Выбранный элемент
-let hoveredPoint = null; // Наведённая точка
-let isDragging = false;
+const roughCanvas = Rough.canvas(canvas);
+const canvasContainer = document.getElementById('canvas-container');
 
-// Размеры Canvas
-canvas.width = 5000;
-canvas.height = 5000;
+// Состояние приложения
+let state = {
+  currentTool: 'select',
+  currentSheet: 0,
+  sheets: [{
+    id: 0,
+    name: 'Лист 1',
+    elements: [],
+    background: 'light'
+  }],
+  selectedElement: null,
+  isDrawing: false,
+  startX: 0,
+  startY: 0,
+  snapToGrid: true
+};
 
-// Цвет из палитры
-document.getElementById('color-picker').addEventListener('input', (e) => {
-  currentColor = e.target.value;
-});
+// Масштабирование
+let scale = 1.0;
+let offsetX = 0;
+let offsetY = 0;
+// Утилиты
+function getMousePos(e) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left - offsetX) / scale,
+    y: (e.clientY - rect.top - offsetY) / scale
+  };
+}
 
-// Выбор инструмента
-document.getElementById('tool-line').addEventListener('click', () => {
-  currentTool = 'line';
-});
-
-document.getElementById('tool-rect').addEventListener('click', () => {
-  currentTool = 'rect';
-});
-
-// Сетка (теперь видна всегда!)
-function drawGrid(step = 30, color = '#e0e0e0') {
-  ctx.strokeStyle = color;
+function drawGrid() {
+  const step = CONFIG.GRID_SIZE;
+  ctx.strokeStyle = CONFIG.GRID_COLOR;
   ctx.lineWidth = 0.5;
+  
+  // Вертикальные линии
   for (let x = 0; x < canvas.width; x += step) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
     ctx.lineTo(x, canvas.height);
     ctx.stroke();
   }
+  
+  // Горизонтальные линии
   for (let y = 0; y < canvas.height; y += step) {
     ctx.beginPath();
     ctx.moveTo(0, y);
@@ -44,164 +68,171 @@ function drawGrid(step = 30, color = '#e0e0e0') {
   }
 }
 
-// Фон холста (белый)
-function drawBackground() {
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-}
-
-// Рисуем все объекты
 function redrawCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawBackground(); // Белый фон
-  drawGrid(); // Сетка сверху
   
-  elements.forEach(el => {
-    ctx.strokeStyle = el.color;
-    ctx.fillStyle = el.color + '40';
-    
-    if (el.type === 'line') {
-      // Линия
+  // Фон
+  ctx.fillStyle = CONFIG.BACKGROUND_COLORS[state.sheets[state.currentSheet].background];
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Сетка
+  drawGrid();
+  
+  // Элементы
+  state.sheets[state.currentSheet].elements.forEach(el => drawElement(el));
+}
+// Отрисовка элементов
+function drawElement(el) {
+  switch (el.type) {
+    case 'line':
       ctx.beginPath();
       ctx.moveTo(el.x1, el.y1);
       ctx.lineTo(el.x2, el.y2);
+      ctx.strokeStyle = el.strokeColor;
+      ctx.lineWidth = el.strokeWidth;
+      ctx.setLineDash(el.dashStyle === 'dashed' ? [5, 3] : []);
       ctx.stroke();
       
-      // Точки управления (если выбрана)
-      if (el === selectedElement) {
-        drawControlPoint(el.x1, el.y1);
-        drawControlPoint(el.x2, el.y2);
-      }
-    } else if (el.type === 'rect') {
-      // Прямоугольник
-      ctx.beginPath();
-      ctx.rect(el.x, el.y, el.width, el.height);
-      ctx.fill();
-      ctx.stroke();
+      // Стрелки
+      if (el.hasArrowStart) drawArrow(el.x1, el.y1, el.x2, el.y2, el.strokeColor);
+      if (el.hasArrowEnd) drawArrow(el.x2, el.y2, el.x1, el.y1, el.strokeColor);
+      break;
       
-      // Точки управления (если выбран)
-      if (el === selectedElement) {
-        drawControlPoint(el.x, el.y); // Левый верхний угол
-        drawControlPoint(el.x + el.width, el.y + el.height); // Правый нижний
-      }
+    case 'rect':
+      roughCanvas.rectangle(
+        el.x, el.y, el.width, el.height,
+        { 
+          stroke: el.strokeColor,
+          fill: el.fillColor,
+          fillStyle: el.fillStyle,
+          roughness: el.style === 'handdrawn' ? 1.5 : 0
+        }
+      );
+      break;
+      
+    case 'text':
+      ctx.font = `${el.fontSize}px Arial`;
+      ctx.fillStyle = el.color;
+      ctx.fillText(el.text, el.x, el.y);
+      break;
+  }
+}
+
+function drawArrow(fromX, fromY, toX, toY, color) {
+  const headLength = 10;
+  const angle = Math.atan2(toY - fromY, toX - fromX);
+  
+  ctx.beginPath();
+  ctx.moveTo(toX, toY);
+  ctx.lineTo(
+    toX - headLength * Math.cos(angle - Math.PI / 6),
+    toY - headLength * Math.sin(angle - Math.PI / 6)
+  );
+  ctx.moveTo(toX, toY);
+  ctx.lineTo(
+    toX - headLength * Math.cos(angle + Math.PI / 6),
+    toY - headLength * Math.sin(angle + Math.PI / 6)
+  );
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+// Обработчики событий
+function initEventListeners() {
+  // Инструменты
+  document.getElementById('tool-select').addEventListener('click', () => {
+    state.currentTool = 'select';
+    updateActiveTool();
+  });
+  
+  document.getElementById('tool-line').addEventListener('click', () => {
+    state.currentTool = 'line';
+    updateActiveTool();
+  });
+  
+  // Клики по холсту
+  canvas.addEventListener('mousedown', handleMouseDown);
+  canvas.addEventListener('mousemove', handleMouseMove);
+  canvas.addEventListener('mouseup', handleMouseUp);
+  
+  // Горячие клавиши
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Delete' && state.selectedElement) {
+      deleteSelectedElement();
     }
   });
 }
 
-// Рисуем точку управления
-function drawControlPoint(x, y) {
-  ctx.fillStyle = 'red';
-  ctx.beginPath();
-  ctx.arc(x, y, 5, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-// Проверяем, кликнули ли на точку
-function getHoveredPoint(x, y, el) {
-  const hitRadius = 10;
+function handleMouseDown(e) {
+  const pos = getMousePos(e);
+  state.isDrawing = true;
+  state.startX = pos.x;
+  state.startY = pos.y;
   
-  if (el.type === 'line') {
-    // Проверяем концы линии
-    const dx1 = x - el.x1;
-    const dy1 = y - el.y1;
-    const dx2 = x - el.x2;
-    const dy2 = y - el.y2;
-    if (dx1 * dx1 + dy1 * dy1 < hitRadius * hitRadius) return 'p1';
-    if (dx2 * dx2 + dy2 * dy2 < hitRadius * hitRadius) return 'p2';
-  } else if (el.type === 'rect') {
-    // Проверяем углы прямоугольника
-    const corners = [
-      { x: el.x, y: el.y, id: 'tl' }, // Верхний левый
-      { x: el.x + el.width, y: el.y + el.height, id: 'br' } // Нижний правый
-    ];
-    for (const corner of corners) {
-      const dx = x - corner.x;
-      const dy = y - corner.y;
-      if (dx * dx + dy * dy < hitRadius * hitRadius) return corner.id;
-    }
-  }
-  return null;
-}
-
-// Обработчики событий
-canvas.addEventListener('mousedown', (e) => {
-  const x = e.offsetX;
-  const y = e.offsetY;
-  
-  // Проверяем, кликнули ли на точку существующего элемента
-  for (const el of elements) {
-    const point = getHoveredPoint(x, y, el);
-    if (point) {
-      selectedElement = el;
-      hoveredPoint = point;
-      isDragging = true;
-      redrawCanvas();
-      return;
-    }
-  }
-  
-  // Создаём новый объект
-  if (currentTool === 'line') {
-    elements.push({
+  if (state.currentTool === 'line') {
+    state.sheets[state.currentSheet].elements.push({
       type: 'line',
-      x1: x,
-      y1: y,
-      x2: x,
-      y2: y,
-      color: currentColor
+      x1: pos.x,
+      y1: pos.y,
+      x2: pos.x,
+      y2: pos.y,
+      strokeColor: document.getElementById('stroke-color').value,
+      strokeWidth: 2,
+      dashStyle: document.getElementById('dash-style').value,
+      hasArrowStart: false,
+      hasArrowEnd: false
     });
-    selectedElement = elements[elements.length - 1];
-    hoveredPoint = 'p2'; // Редактируем вторую точку
-  } else if (currentTool === 'rect') {
-    elements.push({
-      type: 'rect',
-      x: x,
-      y: y,
-      width: 0,
-      height: 0,
-      color: currentColor
-    });
-    selectedElement = elements[elements.length - 1];
-    hoveredPoint = 'br'; // Редактируем правый нижний угол
   }
-  
-  isDragging = true;
-  redrawCanvas();
-});
+}
 
-canvas.addEventListener('mousemove', (e) => {
-  const x = e.offsetX;
-  const y = e.offsetY;
+function handleMouseMove(e) {
+  if (!state.isDrawing) return;
   
-  if (isDragging && selectedElement) {
-    if (selectedElement.type === 'line') {
-      if (hoveredPoint === 'p1') {
-        selectedElement.x1 = x;
-        selectedElement.y1 = y;
-      } else if (hoveredPoint === 'p2') {
-        selectedElement.x2 = x;
-        selectedElement.y2 = y;
-      }
-    } else if (selectedElement.type === 'rect') {
-      if (hoveredPoint === 'tl') {
-        selectedElement.width += selectedElement.x - x;
-        selectedElement.height += selectedElement.y - y;
-        selectedElement.x = x;
-        selectedElement.y = y;
-      } else if (hoveredPoint === 'br') {
-        selectedElement.width = x - selectedElement.x;
-        selectedElement.height = y - selectedElement.y;
-      }
-    }
+  const pos = getMousePos(e);
+  const currentSheet = state.sheets[state.currentSheet];
+  const lastElement = currentSheet.elements[currentSheet.elements.length - 1];
+  
+  if (lastElement && state.currentTool === 'line') {
+    lastElement.x2 = pos.x;
+    lastElement.y2 = pos.y;
     redrawCanvas();
   }
-});
+}
+function handleMouseUp() {
+  state.isDrawing = false;
+}
 
-canvas.addEventListener('mouseup', () => {
-  isDragging = false;
-  hoveredPoint = null;
-});
+function updateActiveTool() {
+  document.querySelectorAll('.toolbar button').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  document.getElementById(`tool-${state.currentTool}`).classList.add('active');
+}
 
-// Первая отрисовка
-drawBackground();
-drawGrid();
+// Инициализация
+function init() {
+  // Настройка размеров Canvas
+  canvas.width = 5000;
+  canvas.height = 5000;
+  
+  // Загрузка сохраненных данных
+  loadFromLocalStorage();
+  
+  // Инициализация интерфейса
+  initEventListeners();
+  updateActiveTool();
+  redrawCanvas();
+}
+
+// Сохранение/загрузка
+function saveToLocalStorage() {
+  localStorage.setItem('levelDesignerData', JSON.stringify(state));
+}
+
+function loadFromLocalStorage() {
+  const savedData = localStorage.getItem('levelDesignerData');
+  if (savedData) state = JSON.parse(savedData);
+}
+
+// Запуск приложения
+window.onload = init;
