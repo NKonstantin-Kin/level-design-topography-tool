@@ -1,153 +1,128 @@
-// Конфигурация
-const CONFIG = {
-  GRID_SIZE: 30,
-  GRID_COLOR: '#e0e0e0',
-  SHEET_BG: '#ffffff'
-};
-
-// Инициализация
+// Инициализация Canvas
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-const roughCanvas = Rough.canvas(canvas);
-let currentTool = 'select';
-let elements = [];
-let isDrawing = false;
-let startX, startY;
-let sheets = [{ id: 0, name: "Лист 1", elements: [] }];
-let activeSheetId = 0;
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight - 50;
 
-// Размеры холста
-function initCanvas() {
-  canvas.width = 5000;
-  canvas.height = 5000;
-  canvas.style.background = CONFIG.SHEET_BG;
-  canvas.classList.add('grid'); // Добавляем сетку
+// Состояние приложения
+const state = {
+  tool: 'select',
+  color: '#0000ff',
+  sheets: [{ id: 1, name: 'Лист 1', elements: [] }],
+  currentSheet: 1,
+  isDrawing: false,
+  startX: 0,
+  startY: 0
+};
+
+// Рисование сетки
+function drawGrid() {
+  ctx.strokeStyle = '#e0e0e0';
+  ctx.lineWidth = 1;
+  const step = 30;
+
+  for (let x = 0; x < canvas.width; x += step) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+
+  for (let y = 0; y < canvas.height; y += step) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
 }
 
-// Панель инструментов
-function setupTools() {
-  document.querySelectorAll('.tool-section button').forEach(btn => {
-    btn.addEventListener('click', function() {
-      currentTool = this.id.replace('tool-', '');
-      document.querySelectorAll('.tool-section button').forEach(b => 
-        b.classList.remove('active'));
-      this.classList.add('active');
+// Обработчики событий
+canvas.addEventListener('mousedown', (e) => {
+  state.isDrawing = true;
+  state.startX = e.offsetX;
+  state.startY = e.offsetY;
+
+  if (state.tool === 'line') {
+    state.sheets[0].elements.push({
+      type: 'line',
+      x1: e.offsetX,
+      y1: e.offsetY,
+      x2: e.offsetX,
+      y2: e.offsetY,
+      color: state.color
     });
-  });
+  }
+});
 
-  // Горячие клавиши
-  document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key === 'm') addNewSheet();
-    if (e.key >= '1' && e.key <= '5') {
-      const tool = document.getElementById(`tool-${['select', 'line', 'rect', 'circle', 'text'][e.key - 1]}`);
-      tool?.click();
-    }
-  });
-}
-// Листы
-function renderSheetTabs() {
-  const container = document.getElementById('sheet-tabs');
-  container.innerHTML = '';
-  sheets.forEach(sheet => {
-    const tab = document.createElement('button');
-    tab.className = `sheet-tab ${sheet.id === activeSheetId ? 'active' : ''}`;
-    tab.textContent = sheet.name;
-    tab.onclick = () => switchSheet(sheet.id);
-    container.appendChild(tab);
-  });
-}
+canvas.addEventListener('mousemove', (e) => {
+  if (!state.isDrawing) return;
 
-function addNewSheet() {
-  const newId = Date.now();
-  sheets.push({ id: newId, name: `Лист ${sheets.length + 1}`, elements: [] });
-  switchSheet(newId);
-}
+  if (state.tool === 'line') {
+    const currentLine = state.sheets[0].elements[state.sheets[0].elements.length - 1];
+    currentLine.x2 = e.offsetX;
+    currentLine.y2 = e.offsetY;
+    redraw();
+  }
+});
 
-function switchSheet(sheetId) {
-  activeSheetId = sheetId;
-  renderSheetTabs();
-  redrawCanvas();
-}
+canvas.addEventListener('mouseup', () => {
+  state.isDrawing = false;
+});
 
-// Отрисовка
-function redrawCanvas() {
+// Перерисовка холста
+function redraw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const activeSheet = sheets.find(s => s.id === activeSheetId);
-  activeSheet?.elements.forEach(el => drawElement(el));
-}
-
-function drawElement(el) {
-  switch (el.type) {
-    case 'line':
+  drawGrid();
+  
+  state.sheets[0].elements.forEach(el => {
+    ctx.strokeStyle = el.color;
+    ctx.lineWidth = 2;
+    
+    if (el.type === 'line') {
       ctx.beginPath();
       ctx.moveTo(el.x1, el.y1);
       ctx.lineTo(el.x2, el.y2);
-      ctx.strokeStyle = el.strokeColor;
-      ctx.lineWidth = 2;
-      ctx.setLineDash(el.dashStyle === 'dashed' ? [5, 3] : []);
       ctx.stroke();
-      break;
-    case 'rect':
-      roughCanvas.rectangle(
-        el.x, el.y, el.width, el.height,
-        {
-          stroke: el.strokeColor,
-          fill: el.fillColor,
-          roughness: document.getElementById('toggle-style').classList.contains('active') ? 1.5 : 0
-        }
-      );
-      break;
-  }
-}
-// Обработчики событий
-function setupCanvasEvents() {
-  canvas.addEventListener('mousedown', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    startX = e.clientX - rect.left;
-    startY = e.clientY - rect.top;
-    isDrawing = true;
-
-    if (currentTool === 'line') {
-      sheets.find(s => s.id === activeSheetId).elements.push({
-        type: 'line',
-        x1: startX, y1: startY,
-        x2: startX, y2: startY,
-        strokeColor: document.getElementById('stroke-color').value,
-        dashStyle: document.getElementById('dash-style').value
-      });
     }
   });
-
-  canvas.addEventListener('mousemove', (e) => {
-    if (!isDrawing) return;
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    const activeSheet = sheets.find(s => s.id === activeSheetId);
-    const lastElement = activeSheet.elements[activeSheet.elements.length - 1];
-
-    if (lastElement && currentTool === 'line') {
-      lastElement.x2 = mouseX;
-      lastElement.y2 = mouseY;
-      redrawCanvas();
-    }
-  });
-
-  canvas.addEventListener('mouseup', () => isDrawing = false);
 }
 
 // Инициализация
 function init() {
-  initCanvas();
-  setupTools();
-  renderSheetTabs();
-  setupCanvasEvents();
-  document.getElementById('add-sheet').addEventListener('click', addNewSheet);
-  document.getElementById('toggle-style').addEventListener('click', function() {
-    this.classList.toggle('active');
-    redrawCanvas();
+  document.getElementById('tool-line').addEventListener('click', () => {
+    state.tool = 'line';
+    updateToolButtons();
   });
+
+  document.getElementById('tool-select').addEventListener('click', () => {
+    state.tool = 'select';
+    updateToolButtons();
+  });
+
+  document.getElementById('stroke-color').addEventListener('input', (e) => {
+    state.color = e.target.value;
+  });
+
+  document.getElementById('add-sheet').addEventListener('click', addNewSheet);
+
+  // Горячие клавиши
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 'm') addNewSheet();
+  });
+
+  redraw();
+}
+
+function updateToolButtons() {
+  document.querySelectorAll('.toolbar button').forEach(btn => {
+    btn.style.background = btn.id === `tool-${state.tool}` ? '#1abc9c' : '#34495e';
+  });
+}
+
+function addNewSheet() {
+  const newId = state.sheets.length + 1;
+  state.sheets.push({ id: newId, name: `Лист ${newId}`, elements: [] });
+  alert(`Добавлен новый лист (${newId})`); // Временное уведомление
 }
 
 window.onload = init;
