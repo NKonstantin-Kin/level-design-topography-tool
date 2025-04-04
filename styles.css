@@ -1,125 +1,43 @@
-/* Основные стили */
+/* styles.css */
 body {
   margin: 0;
-  font-family: 'Arial', sans-serif;
-  height: 100vh;
   overflow: hidden;
-  background: #f0f0f0;
+  font-family: Arial;
 }
 
-.app-container {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
+#canvas {
+  display: block;
+  background: white;
 }
 
-.toolbar {
-  display: flex;
-  padding: 8px;
+#tools {
+  position: fixed;
+  top: 10px;
+  left: 10px;
   background: #2c3e50;
-  gap: 10px;
-  flex-wrap: wrap;
-  color: white;
-}
-
-.tool-section {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 0 10px;
-  border-right: 1px solid #3d5166;
+  padding: 10px;
+  border-radius: 5px;
+  z-index: 100;
 }
 
 button {
-  padding: 6px 12px;
+  display: block;
+  margin: 5px 0;
+  width: 100%;
+  padding: 8px;
   background: #34495e;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 3px;
   cursor: pointer;
-  transition: background 0.2s;
-  min-width: 80px;
 }
 
 button:hover {
   background: #3d5166;
 }
 
-button.active {
-  background: #1abc9c;
-  font-weight: bold;
-}
-
-/* Контейнер холста */
-.canvas-container {
-  flex: 1;
-  overflow: auto;
-  background: #ecf0f1;
-}
-
-#canvas {
-  display: block;
-  background: white;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
-  margin: 20px auto;
-}
-/* Панель листов */
-.sheet-tabs {
-  display: flex;
-  background: #34495e;
-  padding: 5px;
-  align-items: center;
-  overflow-x: auto;
-}
-
-.tabs-container {
-  display: flex;
-  gap: 5px;
-  padding: 0 5px;
-}
-
-.sheet-tab {
-  padding: 5px 15px;
-  background: #2c3e50;
-  color: white;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.sheet-tab.active {
-  background: #1abc9c;
-}
-
-/* Элементы управления */
 input[type="color"] {
-  width: 30px;
-  height: 30px;
-  border: 1px solid #3d5166;
-  border-radius: 4px;
+  width: 100%;
+  margin-top: 10px;
   cursor: pointer;
-}
-
-select {
-  padding: 5px;
-  background: #34495e;
-  color: white;
-  border: 1px solid #3d5166;
-  border-radius: 4px;
-}
-
-/* Сетка */
-.grid {
-  background-image: 
-    linear-gradient(#e0e0e0 1px, transparent 1px),
-    linear-gradient(90deg, #e0e0e0 1px, transparent 1px);
-  background-size: 30px 30px;
-}
-
-/* Адаптивность */
-@media (max-width: 768px) {
-  .tool-section {
-    flex-wrap: wrap;
-  }
 }
