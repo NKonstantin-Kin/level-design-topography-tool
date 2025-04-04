@@ -5,6 +5,31 @@ let isDrawing = false;
 let currentTool = 'line';
 let currentColor = '#000000';
 
+// Рисуем сетку
+function drawGrid(step = 30, color = '#e0e0e0') {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  
+  // Вертикальные линии
+  for (let x = 0; x < canvas.width; x += step) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+  
+  // Горизонтальные линии
+  for (let y = 0; y < canvas.height; y += step) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+}
+
+// Вызываем при загрузке
+drawGrid();
+
 // Размеры Canvas (большие, как у dgrm.net)
 canvas.width = 5000;
 canvas.height = 5000;
