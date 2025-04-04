@@ -1,81 +1,111 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-  <title>Level Designer</title>
+  <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>Топографический редактор</title>
   <style>
-    body { 
+    body {
       margin: 0;
       font-family: Arial;
+      background: #f5f5f5;
       overflow: hidden;
-      background: #f0f0f0;
     }
     #canvas {
       display: block;
       background: white;
       margin: 20px auto;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
     }
-    #tools {
+    #toolbar {
       position: fixed;
-      top: 10px;
-      left: 10px;
+      top: 15px;
+      left: 15px;
       background: #2c3e50;
-      padding: 10px;
-      border-radius: 5px;
+      padding: 15px;
+      border-radius: 10px;
       color: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
     }
-    button {
+    .tool-btn {
       display: block;
-      margin: 5px 0;
-      padding: 8px 12px;
+      margin: 10px 0;
+      padding: 12px;
+      width: 150px;
       background: #34495e;
       color: white;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
-      min-width: 120px;
+      font-size: 16px;
+      transition: all 0.2s;
     }
-    button:hover {
+    .tool-btn:hover {
       background: #3d5166;
+      transform: translateY(-2px);
+    }
+    .tool-btn.active {
+      background: #1abc9c;
+      font-weight: bold;
+    }
+    #color-picker {
+      width: 100%;
+      height: 50px;
+      margin: 15px 0;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <div id="tools">
-    <button id="line-btn">Линия</button>
-    <button id="rect-btn">Прямоугольник</button>
-    <input type="color" id="color-picker" value="#0000ff">
+  <div id="toolbar">
+    <h2 style="margin-top: 0; text-align: center;">Инструменты</h2>
+    <button id="line-btn" class="tool-btn active">✏️ Линия</button>
+    <button id="rect-btn" class="tool-btn">⬜ Прямоугольник</button>
+    <input type="color" id="color-picker" value="#0066ff">
+    <button id="clear-btn" class="tool-btn">❌ Очистить</button>
   </div>
+
   <canvas id="canvas"></canvas>
 
   <script>
-    // Инициализация Canvas
+    // ========== КОНФИГУРАЦИЯ ==========
+    const CONFIG = {
+      GRID_SIZE: 30,
+      GRID_COLOR: '#e0e0e0',
+      CANVAS_WIDTH: 2500,
+      CANVAS_HEIGHT: 1500
+    };
+
+    // ========== ИНИЦИАЛИЗАЦИЯ ==========
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    canvas.width = 800;
-    canvas.height = 600;
+    canvas.width = CONFIG.CANVAS_WIDTH;
+    canvas.height = CONFIG.CANVAS_HEIGHT;
 
-    // Состояние приложения
-    let currentTool = 'line';
-    let currentColor = '#0000ff';
-    let isDrawing = false;
-    let startX, startY;
-    const elements = [];
+    const state = {
+      tool: 'line',
+      color: '#0066ff',
+      elements: [],
+      isDrawing: false,
+      startX: 0,
+      startY: 0
+    };
 
-    // Рисование сетки
+    // ========== ОСНОВНЫЕ ФУНКЦИИ ==========
     function drawGrid() {
-      ctx.strokeStyle = '#e0e0e0';
+      ctx.strokeStyle = CONFIG.GRID_COLOR;
       ctx.lineWidth = 1;
-      const step = 30;
-
-      for (let x = 0; x < canvas.width; x += step) {
+      
+      // Вертикальные линии
+      for (let x = 0; x < canvas.width; x += CONFIG.GRID_SIZE) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, canvas.height);
         ctx.stroke();
       }
-
-      for (let y = 0; y < canvas.height; y += step) {
+      
+      // Горизонтальные линии
+      for (let y = 0; y < canvas.height; y += CONFIG.GRID_SIZE) {
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(canvas.width, y);
@@ -83,12 +113,11 @@
       }
     }
 
-    // Перерисовка всех элементов
     function redraw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawGrid();
 
-      elements.forEach(el => {
+      state.elements.forEach(el => {
         ctx.strokeStyle = el.color;
         ctx.lineWidth = 2;
 
@@ -103,70 +132,80 @@
       });
     }
 
-    // Обработчики событий
+    // ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
     canvas.addEventListener('mousedown', (e) => {
       const rect = canvas.getBoundingClientRect();
-      isDrawing = true;
-      startX = e.clientX - rect.left;
-      startY = e.clientY - rect.top;
+      state.isDrawing = true;
+      state.startX = e.clientX - rect.left;
+      state.startY = e.clientY - rect.top;
 
-      if (currentTool === 'line') {
-        elements.push({
+      if (state.tool === 'line') {
+        state.elements.push({
           type: 'line',
-          x1: startX,
-          y1: startY,
-          x2: startX,
-          y2: startY,
-          color: currentColor
+          x1: state.startX,
+          y1: state.startY,
+          x2: state.startX,
+          y2: state.startY,
+          color: state.color
         });
-      } else if (currentTool === 'rect') {
-        elements.push({
+      } else if (state.tool === 'rect') {
+        state.elements.push({
           type: 'rect',
-          x: startX,
-          y: startY,
+          x: state.startX,
+          y: state.startY,
           width: 0,
           height: 0,
-          color: currentColor
+          color: state.color
         });
       }
     });
 
     canvas.addEventListener('mousemove', (e) => {
-      if (!isDrawing) return;
+      if (!state.isDrawing) return;
+      
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
-      const currentElement = elements[elements.length - 1];
+      const currentElement = state.elements[state.elements.length - 1];
 
-      if (currentTool === 'line') {
+      if (state.tool === 'line') {
         currentElement.x2 = mouseX;
         currentElement.y2 = mouseY;
-      } else if (currentTool === 'rect') {
-        currentElement.width = mouseX - startX;
-        currentElement.height = mouseY - startY;
+      } else if (state.tool === 'rect') {
+        currentElement.width = mouseX - state.startX;
+        currentElement.height = mouseY - state.startY;
       }
 
       redraw();
     });
 
     canvas.addEventListener('mouseup', () => {
-      isDrawing = false;
+      state.isDrawing = false;
     });
 
-    // Управление инструментами
+    // ========== УПРАВЛЕНИЕ ИНТЕРФЕЙСОМ ==========
     document.getElementById('line-btn').addEventListener('click', () => {
-      currentTool = 'line';
+      state.tool = 'line';
+      document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+      this.classList.add('active');
     });
 
-    document.getElementById('rect-btn').addEventListener('click', () => {
-      currentTool = 'rect';
+    document.getElementById('rect-btn').addEventListener('click', function() {
+      state.tool = 'rect';
+      document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+      this.classList.add('active');
     });
 
     document.getElementById('color-picker').addEventListener('input', (e) => {
-      currentColor = e.target.value;
+      state.color = e.target.value;
     });
 
-    // Первая отрисовка
+    document.getElementById('clear-btn').addEventListener('click', () => {
+      state.elements = [];
+      redraw();
+    });
+
+    // ========== ЗАПУСК ==========
     drawGrid();
   </script>
 </body>
