@@ -16,7 +16,14 @@
     .tool-section { margin-bottom: 15px; }
     button { padding: 8px; margin: 4px 0; width: 100%; }
     button.active-tool { background: #4CAF50; color: white; }
-    #text-input { position: absolute; border: 1px dashed #000; padding: 4px; display: none; }
+    #text-input { 
+      position: absolute; 
+      border: 1px dashed #000; 
+      padding: 4px; 
+      display: none;
+      background: white;
+      transform: translateY(-100%); /* Фикс позиционирования */
+    }
   </style>
 </head>
 <body>
@@ -28,7 +35,8 @@
       </div>
       <div class="tool-section">
         <h3>Инструменты</h3>
-        <button id="tool-line" class="active-tool">✏️ Линия</button>
+        <button id="tool-select">🖱️ Выделение</button>
+        <button id="tool-line">✏️ Линия</button>
         <button id="tool-rect">⬛ Прямоугольник</button>
         <button id="tool-text">🔤 Текст</button>
       </div>
@@ -57,8 +65,9 @@
     let state = {
       sheets: [],
       currentSheet: 0,
-      currentTool: 'line',
+      currentTool: 'select',
       selectedElement: null,
+      undoStack: [],
       grid: {
         enabled: true,
         snap: true,
@@ -68,28 +77,17 @@
       elements: []
     };
 
-    // 1. Рисуем сетку
-    function drawGrid() {
-      if (!state.grid.enabled) return;
-      ctx.strokeStyle = state.grid.color;
-      ctx.lineWidth = 1;
-      for (let x = 0; x <= canvas.width; x += state.grid.step) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
-      }
-      for (let y = 0; y <= canvas.height; y += state.grid.step) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-        ctx.stroke();
-      }
+    // 1. Утилиты
+    function saveToUndoStack() {
+      state.undoStack.push(JSON.stringify(state.elements));
+      if (state.undoStack.length > 50) state.undoStack.shift(); // Лимит истории
     }
 
-    // 2. Листы (с удалением)
+    // 2. Работа с листами
     function createSheet() {
       if (state.sheets.length >= 5) return alert('Максимум 5 листов!');
+      saveToUndoStack();
+      
       const newSheet = {
         id: Date.now(),
         name: `Лист ${state.sheets.length + 1}`,
@@ -103,6 +101,8 @@
 
     function deleteSheet(index) {
       if (state.sheets.length <= 1) return alert('Должен остаться хотя бы один лист!');
+      saveToUndoStack();
+      
       state.sheets.splice(index, 1);
       if (state.currentSheet >= index) state.currentSheet = Math.max(0, state.currentSheet - 1);
       renderTabs();
@@ -129,8 +129,35 @@
       renderCanvas();
     }
 
-    // 4. Рисование (линии, прямоугольники, текст)
+    // 4. Рисование
     canvas.addEventListener('mousedown', (e) => {
+      if (state.currentTool === 'select') {
+        // Выделение элемента
+        const x = e.offsetX;
+        const y = e.offsetY;
+        state.selectedElement = null;
+        
+        state.elements.forEach((el, index) => {
+          if (el.type === 'line') {
+            if (distanceToLine(x, y, el.x1, el.y1, el.x2, el.y2) < 10) {
+              state.selectedElement = index;
+            }
+          } else if (el.type === 'rect') {
+            if (x >= Math.min(el.x1, el.x2) && x <= Math.max(el.x1, el.x2) &&
+                y >= Math.min(el.y1, el.y2) && y <= Math.max(el.y1, el.y2)) {
+              state.selectedElement = index;
+            }
+          } else if (el.type === 'text') {
+            if (x >= el.x - 5 && x <= el.x + ctx.measureText(el.content).width + 5 &&
+                y >= el.y - 16 && y <= el.y + 5) {
+              state.selectedElement = index;
+            }
+          }
+        });
+        renderCanvas();
+        return;
+      }
+
       if (state.currentTool === 'text') {
         textInput.style.display = 'block';
         textInput.style.left = `${e.offsetX}px`;
@@ -139,6 +166,7 @@
         return;
       }
 
+      saveToUndoStack();
       const startX = e.offsetX;
       const startY = e.offsetY;
       
@@ -154,7 +182,6 @@
         } else if (state.currentTool === 'rect') {
           ctx.rect(startX, startY, e.offsetX - startX, e.offsetY - startY);
         }
-        
         ctx.stroke();
       }
 
@@ -171,17 +198,19 @@
           color: '#000000'
         });
         saveToLocalStorage();
+        renderCanvas();
       }
 
       canvas.addEventListener('mousemove', onMouseMove);
       canvas.addEventListener('mouseup', onMouseUp);
     });
 
-    // Обработка текста
+    // 5. Текст
     textInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         const text = textInput.innerText.trim();
         if (text) {
+          saveToUndoStack();
           state.elements.push({
             type: 'text',
             x: parseInt(textInput.style.left),
@@ -197,51 +226,41 @@
       }
     });
 
-    // 5. Удаление элементов (Delete)
+    // 6. Горячие клавиши
     document.addEventListener('keydown', (e) => {
+      // Delete
       if (e.key === 'Delete' && state.selectedElement !== null) {
+        saveToUndoStack();
         state.elements.splice(state.selectedElement, 1);
         state.selectedElement = null;
         saveToLocalStorage();
         renderCanvas();
       }
+      
       // Ctrl+Z
-      if (e.ctrlKey && e.key === 'z') {
-        if (state.elements.length > 0) {
-          state.elements.pop();
-          saveToLocalStorage();
-          renderCanvas();
-        }
+      if (e.ctrlKey && e.key === 'z' && state.undoStack.length > 0) {
+        e.preventDefault();
+        state.elements = JSON.parse(state.undoStack.pop());
+        saveToLocalStorage();
+        renderCanvas();
       }
+      
       // Ctrl+S
       if (e.ctrlKey && e.key === 's') {
         e.preventDefault();
-        alert('Проект сохранён локально!');
+        exportToPNG();
       }
     });
 
-    // 6. Выбор элемента
-    canvas.addEventListener('click', (e) => {
-      if (state.currentTool !== 'select') return;
-      
-      const x = e.offsetX;
-      const y = e.offsetY;
-      
-      state.elements.forEach((el, index) => {
-        if (el.type === 'line') {
-          // Упрощённая проверка клика рядом с линией
-          const distance = distanceToLine(x, y, el.x1, el.y1, el.x2, el.y2);
-          if (distance < 10) state.selectedElement = index;
-        } else if (el.type === 'rect') {
-          if (x >= Math.min(el.x1, el.x2) && x <= Math.max(el.x1, el.x2) &&
-              y >= Math.min(el.y1, el.y2) && y <= Math.max(el.y1, el.y2)) {
-            state.selectedElement = index;
-          }
-        }
-      });
-      renderCanvas();
-    });
+    // 7. Экспорт в PNG
+    function exportToPNG() {
+      const link = document.createElement('a');
+      link.download = `Лист-${state.currentSheet + 1}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
 
+    // 8. Вспомогательные функции
     function distanceToLine(x, y, x1, y1, x2, y2) {
       const A = x - x1;
       const B = y - y1;
@@ -265,57 +284,40 @@
       return Math.sqrt((x - xx) ** 2 + (y - yy) ** 2);
     }
 
-    // 7. Рендер элементов (с выделением)
+    // 9. Рендер
     function renderElements() {
       state.elements.forEach((el, index) => {
         ctx.beginPath();
         ctx.strokeStyle = el.color;
+        ctx.fillStyle = el.color;
         ctx.lineWidth = 2;
         
         if (el.type === 'line') {
           ctx.moveTo(el.x1, el.y1);
           ctx.lineTo(el.x2, el.y2);
-          if (index === state.selectedElement) {
-            ctx.strokeStyle = '#FF0000';
-            ctx.lineWidth = 3;
-          }
         } else if (el.type === 'rect') {
           ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
-          if (index === state.selectedElement) {
-            ctx.strokeStyle = '#FF0000';
-            ctx.lineWidth = 3;
-          }
         } else if (el.type === 'text') {
-          ctx.fillStyle = el.color;
           ctx.font = '16px Arial';
           ctx.fillText(el.content, el.x, el.y);
-          if (index === state.selectedElement) {
-            ctx.strokeStyle = '#FF0000';
-            ctx.lineWidth = 1;
+        }
+        
+        if (index === state.selectedElement) {
+          ctx.strokeStyle = '#FF0000';
+          ctx.lineWidth = 3;
+          if (el.type === 'line') {
+            ctx.moveTo(el.x1, el.y1);
+            ctx.lineTo(el.x2, el.y2);
+          } else if (el.type === 'rect') {
+            ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
+          } else if (el.type === 'text') {
             ctx.strokeText(el.content, el.x, el.y);
           }
         }
-        
         ctx.stroke();
       });
     }
 
-    // 8. Сохранение
-    function saveToLocalStorage() {
-      state.sheets[state.currentSheet].elements = state.elements;
-      localStorage.setItem('levelDesigner', JSON.stringify(state));
-    }
-
-    function loadFromLocalStorage() {
-      const saved = localStorage.getItem('levelDesigner');
-      if (saved) state = JSON.parse(saved);
-      if (state.sheets.length === 0) createSheet();
-      state.elements = state.sheets[state.currentSheet].elements;
-      renderTabs();
-      renderCanvas();
-    }
-
-    // 9. Общий рендер
     function renderCanvas() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawGrid();
@@ -335,13 +337,13 @@
         tab.onclick = () => switchSheet(index);
         tabsContainer.appendChild(tab);
       });
+      
       const newTab = document.createElement('div');
       newTab.className = 'tab';
       newTab.textContent = '+';
       newTab.onclick = createSheet;
       tabsContainer.appendChild(newTab);
 
-      // Обработчики удаления листов
       document.querySelectorAll('.tab-close').forEach(btn => {
         btn.onclick = (e) => {
           e.stopPropagation();
@@ -350,7 +352,23 @@
       });
     }
 
-    // 10. Обработчики
+    // 10. Сохранение/загрузка
+    function saveToLocalStorage() {
+      state.sheets[state.currentSheet].elements = state.elements;
+      localStorage.setItem('levelDesigner', JSON.stringify(state));
+    }
+
+    function loadFromLocalStorage() {
+      const saved = localStorage.getItem('levelDesigner');
+      if (saved) state = JSON.parse(saved);
+      if (state.sheets.length === 0) createSheet();
+      state.elements = state.sheets[state.currentSheet].elements;
+      state.undoStack = [];
+      renderTabs();
+      renderCanvas();
+    }
+
+    // 11. Обработчики
     document.getElementById('new-sheet').addEventListener('click', createSheet);
     document.getElementById('toggle-grid').addEventListener('click', function() {
       state.grid.enabled = !state.grid.enabled;
@@ -365,13 +383,14 @@
       state.grid.step = Math.max(10, parseInt(e.target.value));
       renderCanvas();
     });
+    document.getElementById('tool-select').addEventListener('click', () => setActiveTool('select'));
     document.getElementById('tool-line').addEventListener('click', () => setActiveTool('line'));
     document.getElementById('tool-rect').addEventListener('click', () => setActiveTool('rect'));
     document.getElementById('tool-text').addEventListener('click', () => setActiveTool('text'));
 
     // Запуск
     loadFromLocalStorage();
-    setActiveTool('line');
+    setActiveTool('select');
   </script>
 </body>
 </html>
