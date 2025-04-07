@@ -416,9 +416,9 @@
                  y >= Math.min(element.y1, element.y2) && 
                  y <= Math.max(element.y1, element.y2);
         case 'circle':
-          const radius = Math.sqrt(Math.pow(element.x2 - element.x1, 2) + Math.pow(element.y2 - element.y1, 2));
-          const dist = Math.sqrt(Math.pow(x - element.x1, 2) + Math.pow(y - element.y1, 2));
-          return dist <= radius + 5;
+          const circleRadius = Math.sqrt(Math.pow(element.x2 - element.x1, 2) + Math.pow(element.y2 - element.y1, 2));
+          const distToCenter = Math.sqrt(Math.pow(x - element.x1, 2) + Math.pow(y - element.y1, 2));
+          return distToCenter <= circleRadius + 5;
         case 'diamond':
           const diamondCenterX = (element.x1 + element.x2) / 2;
           const diamondCenterY = (element.y1 + element.y2) / 2;
@@ -461,10 +461,10 @@
           const py = y - hexCenterY;
           
           const angle = Math.atan2(py, px);
-          const radius = hexSide / Math.cos(Math.PI / 6);
+          const hexRadius = hexSide / Math.cos(Math.PI / 6);
           const distance = Math.sqrt(px * px + py * py);
           
-          return distance <= radius * Math.cos(Math.abs(angle) % (Math.PI / 3) - Math.PI / 6);
+          return distance <= hexRadius * Math.cos(Math.abs(angle) % (Math.PI / 3) - Math.PI / 6);
         case 'arrow':
           const arrowHeadSize = Math.min(Math.abs(element.x2 - element.x1), Math.abs(element.y2 - element.y1)) / 3;
           const angle = Math.atan2(element.y2 - element.y1, element.x2 - element.x1);
@@ -536,8 +536,8 @@
             ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
             break;
           case 'circle':
-            const radius = Math.sqrt(Math.pow(el.x2 - el.x1, 2) + Math.pow(el.y2 - el.y1, 2));
-            ctx.arc(el.x1, el.y1, radius, 0, Math.PI * 2);
+            const circleRadius = Math.sqrt(Math.pow(el.x2 - el.x1, 2) + Math.pow(el.y2 - el.y1, 2));
+            ctx.arc(el.x1, el.y1, circleRadius, 0, Math.PI * 2);
             break;
           case 'diamond':
             const diamondCenterX = (el.x1 + el.x2) / 2;
@@ -626,11 +626,11 @@
           points.push({ x: element.x2, y: element.y2, type: 'bottom-right' });
           break;
         case 'circle':
-          const radius = Math.sqrt(Math.pow(element.x2 - element.x1, 2) + Math.pow(element.y2 - element.y1, 2));
-          points.push({ x: element.x1, y: element.y1 - radius, type: 'top' });
-          points.push({ x: element.x1 + radius, y: element.y1, type: 'right' });
-          points.push({ x: element.x1, y: element.y1 + radius, type: 'bottom' });
-          points.push({ x: element.x1 - radius, y: element.y1, type: 'left' });
+          const circleRadius = Math.sqrt(Math.pow(element.x2 - element.x1, 2) + Math.pow(element.y2 - element.y1, 2));
+          points.push({ x: element.x1, y: element.y1 - circleRadius, type: 'top' });
+          points.push({ x: element.x1 + circleRadius, y: element.y1, type: 'right' });
+          points.push({ x: element.x1, y: element.y1 + circleRadius, type: 'bottom' });
+          points.push({ x: element.x1 - circleRadius, y: element.y1, type: 'left' });
           break;
         case 'arrow':
           points.push({ x: element.x1, y: element.y1, type: 'start' });
@@ -718,7 +718,7 @@
       renderElements();
     }
 
-    // ... (остальные функции без изменений, как в предыдущей версии)
+    // ... (остальные функции без изменений)
 
     // ========== ЗАПУСК ==========
     loadFromLocalStorage();
