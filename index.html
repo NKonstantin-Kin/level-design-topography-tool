@@ -6,14 +6,15 @@
   <style>
     body { margin: 0; font-family: Arial; overflow: hidden; }
     #app { display: flex; height: 100vh; }
-    #toolbar { width: 200px; background: #f5f5f5; border-right: 1px solid #ddd; padding: 10px; }
+    #toolbar { width: 200px; background: #f5f5f5; border-right: 1px solid #ddd; padding: 10px; overflow-y: auto; }
     #canvas-container { flex: 1; position: relative; overflow: auto; }
-    canvas { display: block; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    canvas { display: block; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); cursor: crosshair; }
     .tabs { display: flex; background: #eee; padding: 8px 8px 0; }
     .tab { padding: 8px 16px; margin-right: 4px; background: #ddd; border-radius: 4px 4px 0 0; cursor: pointer; }
     .tab.active { background: white; font-weight: bold; }
     .tool-section { margin-bottom: 15px; }
     button { padding: 8px; margin: 4px 0; width: 100%; }
+    button.active-tool { background: #4CAF50; color: white; }
   </style>
 </head>
 <body>
@@ -22,6 +23,12 @@
       <div class="tool-section">
         <h3>Листы</h3>
         <button id="new-sheet">+ Новый лист</button>
+      </div>
+      <div class="tool-section">
+        <h3>Инструменты</h3>
+        <button id="tool-line" class="active-tool">✏️ Линия</button>
+        <button id="tool-rect">⬛ Прямоугольник</button>
+        <button id="tool-text">🔤 Текст</button>
       </div>
       <div class="tool-section">
         <h3>Сетка</h3>
@@ -46,12 +53,14 @@
     let state = {
       sheets: [],
       currentSheet: 0,
+      currentTool: 'line',
       grid: {
         enabled: true,
         snap: true,
         step: 20,
         color: '#ddd'
-      }
+      },
+      elements: []
     };
 
     // 1. Рисуем сетку
@@ -89,12 +98,83 @@
 
     function switchSheet(index) {
       state.currentSheet = index;
+      state.elements = state.sheets[index].elements;
       renderCanvas();
       renderTabs();
     }
 
-    // 3. Сохранение
+    // 3. Инструменты
+    function setActiveTool(tool) {
+      state.currentTool = tool;
+      document.querySelectorAll('#toolbar button').forEach(btn => {
+        btn.classList.remove('active-tool');
+      });
+      document.getElementById(`tool-${tool}`).classList.add('active-tool');
+    }
+
+    // 4. Рисование
+    canvas.addEventListener('mousedown', (e) => {
+      if (state.currentTool === 'line' || state.currentTool === 'rect') {
+        const startX = e.offsetX;
+        const startY = e.offsetY;
+        
+        function onMouseMove(e) {
+          renderCanvas();
+          ctx.beginPath();
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 2;
+          
+          if (state.currentTool === 'line') {
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(e.offsetX, e.offsetY);
+          } else if (state.currentTool === 'rect') {
+            ctx.rect(startX, startY, e.offsetX - startX, e.offsetY - startY);
+          }
+          
+          ctx.stroke();
+        }
+
+        function onMouseUp(e) {
+          canvas.removeEventListener('mousemove', onMouseMove);
+          canvas.removeEventListener('mouseup', onMouseUp);
+          
+          state.elements.push({
+            type: state.currentTool,
+            x1: startX,
+            y1: startY,
+            x2: e.offsetX,
+            y2: e.offsetY,
+            color: '#000000'
+          });
+          saveToLocalStorage();
+        }
+
+        canvas.addEventListener('mousemove', onMouseMove);
+        canvas.addEventListener('mouseup', onMouseUp);
+      }
+    });
+
+    // 5. Рендер элементов
+    function renderElements() {
+      state.elements.forEach(el => {
+        ctx.beginPath();
+        ctx.strokeStyle = el.color;
+        ctx.lineWidth = 2;
+        
+        if (el.type === 'line') {
+          ctx.moveTo(el.x1, el.y1);
+          ctx.lineTo(el.x2, el.y2);
+        } else if (el.type === 'rect') {
+          ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
+        }
+        
+        ctx.stroke();
+      });
+    }
+
+    // 6. Сохранение
     function saveToLocalStorage() {
+      state.sheets[state.currentSheet].elements = state.elements;
       localStorage.setItem('levelDesigner', JSON.stringify(state));
     }
 
@@ -102,14 +182,16 @@
       const saved = localStorage.getItem('levelDesigner');
       if (saved) state = JSON.parse(saved);
       if (state.sheets.length === 0) createSheet();
+      state.elements = state.sheets[state.currentSheet].elements;
       renderTabs();
       renderCanvas();
     }
 
-    // 4. Рендер
+    // 7. Общий рендер
     function renderCanvas() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawGrid();
+      renderElements();
     }
 
     function renderTabs() {
@@ -129,7 +211,7 @@
       tabsContainer.appendChild(newTab);
     }
 
-    // 5. Обработчики
+    // 8. Обработчики
     document.getElementById('new-sheet').addEventListener('click', createSheet);
     document.getElementById('toggle-grid').addEventListener('click', function() {
       state.grid.enabled = !state.grid.enabled;
@@ -144,9 +226,13 @@
       state.grid.step = Math.max(10, parseInt(e.target.value));
       renderCanvas();
     });
+    document.getElementById('tool-line').addEventListener('click', () => setActiveTool('line'));
+    document.getElementById('tool-rect').addEventListener('click', () => setActiveTool('rect'));
+    document.getElementById('tool-text').addEventListener('click', () => setActiveTool('text'));
 
     // Запуск
     loadFromLocalStorage();
+    setActiveTool('line');
   </script>
 </body>
 </html>
