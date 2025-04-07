@@ -13,6 +13,7 @@
     .tab { padding: 8px 16px; margin: 0 4px 4px 0; background: #ddd; border-radius: 4px 4px 0 0; cursor: pointer; position: relative; }
     .tab.active { background: white; font-weight: bold; }
     .tab-close { position: absolute; right: 2px; top: 2px; font-size: 12px; color: #666; }
+    .tab-edit { position: absolute; right: 15px; top: 2px; font-size: 12px; color: #666; }
     .tool-section { margin-bottom: 15px; }
     button { padding: 8px; margin: 4px 0; width: 100%; }
     button.active-tool { background: #4CAF50; color: white; }
@@ -22,7 +23,19 @@
       padding: 4px; 
       display: none;
       background: white;
-      transform: translateY(-100%);
+      transform: translateY(-120%); /* Слегка поднято */
+    }
+    #rename-dialog {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border: 1px solid #ccc;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      z-index: 100;
+      display: none;
     }
   </style>
 </head>
@@ -54,6 +67,13 @@
     </div>
   </div>
 
+  <div id="rename-dialog">
+    <h3>Переименовать лист</h3>
+    <input type="text" id="rename-input" style="width: 100%; margin-bottom: 10px;">
+    <button id="rename-confirm">OK</button>
+    <button id="rename-cancel">Отмена</button>
+  </div>
+
   <script>
     // Инициализация
     const canvas = document.getElementById('sheet');
@@ -68,16 +88,18 @@
       currentTool: 'select',
       selectedElement: null,
       undoStack: [],
+      redoStack: [],
       grid: {
         enabled: true,
         snap: true,
         step: 20,
         color: '#ddd'
       },
-      elements: []
+      elements: [],
+      renamingSheet: null
     };
 
-    // 1. Рисование сетки (исправлено!)
+    // 1. Рисование сетки
     function drawGrid() {
       if (!state.grid.enabled) return;
       ctx.strokeStyle = state.grid.color;
@@ -96,10 +118,30 @@
       }
     }
 
-    // 2. Утилиты
+    // 2. Управление историей
     function saveToUndoStack() {
-      state.undoStack.push(JSON.stringify(state.elements));
-      if (state.undoStack.length > 50) state.undoStack.shift();
+      state.undoStack.push(JSON.stringify({
+        elements: [...state.elements],
+        sheets: [...state.sheets],
+        currentSheet: state.currentSheet
+      }));
+      state.redoStack = [];
+    }
+
+    function undo() {
+      if (state.undoStack.length === 0) return;
+      state.redoStack.push(JSON.stringify({
+        elements: [...state.elements],
+        sheets: [...state.sheets],
+        currentSheet: state.currentSheet
+      }));
+      const prevState = JSON.parse(state.undoStack.pop());
+      state.elements = prevState.elements;
+      state.sheets = prevState.sheets;
+      state.currentSheet = prevState.currentSheet;
+      saveToLocalStorage();
+      renderCanvas();
+      renderTabs();
     }
 
     // 3. Работа с листами
@@ -127,6 +169,28 @@
       renderTabs();
       switchSheet(state.currentSheet);
       saveToLocalStorage();
+    }
+
+    function renameSheet(index) {
+      state.renamingSheet = index;
+      document.getElementById('rename-input').value = state.sheets[index].name;
+      document.getElementById('rename-dialog').style.display = 'block';
+    }
+
+    function confirmRename() {
+      const newName = document.getElementById('rename-input').value.trim();
+      if (newName && state.renamingSheet !== null) {
+        saveToUndoStack();
+        state.sheets[state.renamingSheet].name = newName;
+        saveToLocalStorage();
+        renderTabs();
+      }
+      cancelRename();
+    }
+
+    function cancelRename() {
+      document.getElementById('rename-dialog').style.display = 'none';
+      state.renamingSheet = null;
     }
 
     function switchSheet(index) {
@@ -179,7 +243,7 @@
       if (state.currentTool === 'text') {
         textInput.style.display = 'block';
         textInput.style.left = `${e.offsetX}px`;
-        textInput.style.top = `${e.offsetY}px`;
+        textInput.style.top = `${e.offsetY + 20}px`; // Смещение для удобства
         textInput.focus();
         return;
       }
@@ -232,7 +296,7 @@
           state.elements.push({
             type: 'text',
             x: parseInt(textInput.style.left),
-            y: parseInt(textInput.style.top),
+            y: parseInt(textInput.style.top) + 20, // Корректировка позиции
             content: text,
             color: '#000000'
           });
@@ -246,6 +310,7 @@
 
     // 7. Горячие клавиши
     document.addEventListener('keydown', (e) => {
+      // Delete
       if (e.key === 'Delete' && state.selectedElement !== null) {
         saveToUndoStack();
         state.elements.splice(state.selectedElement, 1);
@@ -254,13 +319,13 @@
         renderCanvas();
       }
       
-      if (e.ctrlKey && e.key === 'z' && state.undoStack.length > 0) {
+      // Ctrl+Z
+      if (e.ctrlKey && e.key === 'z') {
         e.preventDefault();
-        state.elements = JSON.parse(state.undoStack.pop());
-        saveToLocalStorage();
-        renderCanvas();
+        undo();
       }
       
+      // Ctrl+S
       if (e.ctrlKey && e.key === 's') {
         e.preventDefault();
         exportToPNG();
@@ -269,9 +334,55 @@
 
     // 8. Экспорт в PNG
     function exportToPNG() {
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      
+      // Рисуем фон
+      tempCtx.fillStyle = 'white';
+      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+      
+      // Рисуем сетку (если включена)
+      if (state.grid.enabled) {
+        tempCtx.strokeStyle = state.grid.color;
+        tempCtx.lineWidth = 1;
+        for (let x = 0; x <= tempCanvas.width; x += state.grid.step) {
+          tempCtx.beginPath();
+          tempCtx.moveTo(x, 0);
+          tempCtx.lineTo(x, tempCanvas.height);
+          tempCtx.stroke();
+        }
+        for (let y = 0; y <= tempCanvas.height; y += state.grid.step) {
+          tempCtx.beginPath();
+          tempCtx.moveTo(0, y);
+          tempCtx.lineTo(tempCanvas.width, y);
+          tempCtx.stroke();
+        }
+      }
+      
+      // Рисуем элементы
+      state.elements.forEach(el => {
+        tempCtx.beginPath();
+        tempCtx.strokeStyle = el.color;
+        tempCtx.fillStyle = el.color;
+        tempCtx.lineWidth = 2;
+        
+        if (el.type === 'line') {
+          tempCtx.moveTo(el.x1, el.y1);
+          tempCtx.lineTo(el.x2, el.y2);
+        } else if (el.type === 'rect') {
+          tempCtx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
+        } else if (el.type === 'text') {
+          tempCtx.font = '16px Arial';
+          tempCtx.fillText(el.content, el.x, el.y);
+        }
+        tempCtx.stroke();
+      });
+      
       const link = document.createElement('a');
-      link.download = `Лист-${state.currentSheet + 1}.png`;
-      link.href = canvas.toDataURL('image/png');
+      link.download = `${state.sheets[state.currentSheet].name}.png`;
+      link.href = tempCanvas.toDataURL('image/png');
       link.click();
     }
 
@@ -335,7 +446,7 @@
 
     function renderCanvas() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawGrid(); // Теперь функция определена!
+      drawGrid();
       renderElements();
     }
 
@@ -347,6 +458,7 @@
         tab.className = `tab ${index === state.currentSheet ? 'active' : ''}`;
         tab.innerHTML = `
           ${sheet.name}
+          <span class="tab-edit" data-index="${index}">✏️</span>
           <span class="tab-close" data-index="${index}">×</span>
         `;
         tab.onclick = () => switchSheet(index);
@@ -365,6 +477,13 @@
           deleteSheet(parseInt(btn.dataset.index));
         };
       });
+
+      document.querySelectorAll('.tab-edit').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          renameSheet(parseInt(btn.dataset.index));
+        };
+      });
     }
 
     // 11. Сохранение/загрузка
@@ -375,10 +494,21 @@
 
     function loadFromLocalStorage() {
       const saved = localStorage.getItem('levelDesigner');
-      if (saved) state = JSON.parse(saved);
+      if (saved) {
+        state = JSON.parse(saved);
+        // Очистка кэша принудительно
+        if (performance.navigation.type === 1) {
+          localStorage.removeItem('levelDesigner');
+          state.sheets = [];
+          state.elements = [];
+          createSheet();
+          return;
+        }
+      }
       if (state.sheets.length === 0) createSheet();
       state.elements = state.sheets[state.currentSheet].elements;
       state.undoStack = [];
+      state.redoStack = [];
       renderTabs();
       renderCanvas();
     }
@@ -402,10 +532,28 @@
     document.getElementById('tool-line').addEventListener('click', () => setActiveTool('line'));
     document.getElementById('tool-rect').addEventListener('click', () => setActiveTool('rect'));
     document.getElementById('tool-text').addEventListener('click', () => setActiveTool('text'));
+    document.getElementById('rename-confirm').addEventListener('click', confirmRename);
+    document.getElementById('rename-cancel').addEventListener('click', cancelRename);
+
+    // 13. Принудительная очистка кэша
+    function clearCache() {
+      localStorage.removeItem('levelDesigner');
+      location.reload(true);
+    }
 
     // Запуск
     loadFromLocalStorage();
     setActiveTool('select');
+
+    // Для отладки: добавим кнопку очистки кэша
+    const clearBtn = document.createElement('button');
+    clearBtn.textContent = 'Очистить кэш (для разработки)';
+    clearBtn.style.position = 'fixed';
+    clearBtn.style.bottom = '10px';
+    clearBtn.style.right = '10px';
+    clearBtn.style.zIndex = '1000';
+    clearBtn.onclick = clearCache;
+    document.body.appendChild(clearBtn);
   </script>
 </body>
 </html>
