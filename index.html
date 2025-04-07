@@ -22,7 +22,7 @@
       padding: 4px; 
       display: none;
       background: white;
-      transform: translateY(-100%); /* Фикс позиционирования */
+      transform: translateY(-100%);
     }
   </style>
 </head>
@@ -35,7 +35,7 @@
       </div>
       <div class="tool-section">
         <h3>Инструменты</h3>
-        <button id="tool-select">🖱️ Выделение</button>
+        <button id="tool-select" class="active-tool">🖱️ Выделение</button>
         <button id="tool-line">✏️ Линия</button>
         <button id="tool-rect">⬛ Прямоугольник</button>
         <button id="tool-text">🔤 Текст</button>
@@ -77,13 +77,32 @@
       elements: []
     };
 
-    // 1. Утилиты
-    function saveToUndoStack() {
-      state.undoStack.push(JSON.stringify(state.elements));
-      if (state.undoStack.length > 50) state.undoStack.shift(); // Лимит истории
+    // 1. Рисование сетки (исправлено!)
+    function drawGrid() {
+      if (!state.grid.enabled) return;
+      ctx.strokeStyle = state.grid.color;
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= canvas.width; x += state.grid.step) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= canvas.height; y += state.grid.step) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
     }
 
-    // 2. Работа с листами
+    // 2. Утилиты
+    function saveToUndoStack() {
+      state.undoStack.push(JSON.stringify(state.elements));
+      if (state.undoStack.length > 50) state.undoStack.shift();
+    }
+
+    // 3. Работа с листами
     function createSheet() {
       if (state.sheets.length >= 5) return alert('Максимум 5 листов!');
       saveToUndoStack();
@@ -118,7 +137,7 @@
       renderTabs();
     }
 
-    // 3. Инструменты
+    // 4. Инструменты
     function setActiveTool(tool) {
       state.currentTool = tool;
       document.querySelectorAll('#toolbar button').forEach(btn => {
@@ -129,10 +148,9 @@
       renderCanvas();
     }
 
-    // 4. Рисование
+    // 5. Рисование
     canvas.addEventListener('mousedown', (e) => {
       if (state.currentTool === 'select') {
-        // Выделение элемента
         const x = e.offsetX;
         const y = e.offsetY;
         state.selectedElement = null;
@@ -205,7 +223,7 @@
       canvas.addEventListener('mouseup', onMouseUp);
     });
 
-    // 5. Текст
+    // 6. Текст
     textInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         const text = textInput.innerText.trim();
@@ -226,9 +244,8 @@
       }
     });
 
-    // 6. Горячие клавиши
+    // 7. Горячие клавиши
     document.addEventListener('keydown', (e) => {
-      // Delete
       if (e.key === 'Delete' && state.selectedElement !== null) {
         saveToUndoStack();
         state.elements.splice(state.selectedElement, 1);
@@ -237,7 +254,6 @@
         renderCanvas();
       }
       
-      // Ctrl+Z
       if (e.ctrlKey && e.key === 'z' && state.undoStack.length > 0) {
         e.preventDefault();
         state.elements = JSON.parse(state.undoStack.pop());
@@ -245,14 +261,13 @@
         renderCanvas();
       }
       
-      // Ctrl+S
       if (e.ctrlKey && e.key === 's') {
         e.preventDefault();
         exportToPNG();
       }
     });
 
-    // 7. Экспорт в PNG
+    // 8. Экспорт в PNG
     function exportToPNG() {
       const link = document.createElement('a');
       link.download = `Лист-${state.currentSheet + 1}.png`;
@@ -260,7 +275,7 @@
       link.click();
     }
 
-    // 8. Вспомогательные функции
+    // 9. Вспомогательные функции
     function distanceToLine(x, y, x1, y1, x2, y2) {
       const A = x - x1;
       const B = y - y1;
@@ -284,7 +299,7 @@
       return Math.sqrt((x - xx) ** 2 + (y - yy) ** 2);
     }
 
-    // 9. Рендер
+    // 10. Рендер
     function renderElements() {
       state.elements.forEach((el, index) => {
         ctx.beginPath();
@@ -320,7 +335,7 @@
 
     function renderCanvas() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawGrid();
+      drawGrid(); // Теперь функция определена!
       renderElements();
     }
 
@@ -352,7 +367,7 @@
       });
     }
 
-    // 10. Сохранение/загрузка
+    // 11. Сохранение/загрузка
     function saveToLocalStorage() {
       state.sheets[state.currentSheet].elements = state.elements;
       localStorage.setItem('levelDesigner', JSON.stringify(state));
@@ -368,7 +383,7 @@
       renderCanvas();
     }
 
-    // 11. Обработчики
+    // 12. Обработчики
     document.getElementById('new-sheet').addEventListener('click', createSheet);
     document.getElementById('toggle-grid').addEventListener('click', function() {
       state.grid.enabled = !state.grid.enabled;
