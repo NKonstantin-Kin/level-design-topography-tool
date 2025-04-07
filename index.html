@@ -23,7 +23,7 @@
       padding: 4px; 
       display: none;
       background: white;
-      transform: translateY(-120%); /* Слегка поднято */
+      z-index: 10;
     }
     #rename-dialog {
       position: fixed;
@@ -96,7 +96,8 @@
         color: '#ddd'
       },
       elements: [],
-      renamingSheet: null
+      renamingSheet: null,
+      textInputActive: false
     };
 
     // 1. Рисование сетки
@@ -121,27 +122,41 @@
     // 2. Управление историей
     function saveToUndoStack() {
       state.undoStack.push(JSON.stringify({
-        elements: [...state.elements],
-        sheets: [...state.sheets],
+        elements: JSON.parse(JSON.stringify(state.elements)),
+        sheets: JSON.parse(JSON.stringify(state.sheets)),
         currentSheet: state.currentSheet
       }));
+      if (state.undoStack.length > 50) state.undoStack.shift();
       state.redoStack = [];
     }
 
     function undo() {
       if (state.undoStack.length === 0) return;
+      
+      // Сохраняем текущее состояние в redoStack
       state.redoStack.push(JSON.stringify({
-        elements: [...state.elements],
-        sheets: [...state.sheets],
+        elements: JSON.parse(JSON.stringify(state.elements)),
+        sheets: JSON.parse(JSON.stringify(state.sheets)),
         currentSheet: state.currentSheet
       }));
+      
+      // Восстанавливаем предыдущее состояние
       const prevState = JSON.parse(state.undoStack.pop());
       state.elements = prevState.elements;
       state.sheets = prevState.sheets;
       state.currentSheet = prevState.currentSheet;
+      
+      // Обновляем отображение
+      state.elements = state.sheets[state.currentSheet].elements;
       saveToLocalStorage();
       renderCanvas();
       renderTabs();
+      
+      // Скрываем текстовое поле, если оно было активно
+      if (state.textInputActive) {
+        textInput.style.display = 'none';
+        state.textInputActive = false;
+      }
     }
 
     // 3. Работа с листами
@@ -149,9 +164,15 @@
       if (state.sheets.length >= 5) return alert('Максимум 5 листов!');
       saveToUndoStack();
       
+      // Генерируем уникальное имя
+      let sheetNumber = 1;
+      while (state.sheets.some(sheet => sheet.name === `Лист ${sheetNumber}`)) {
+        sheetNumber++;
+      }
+      
       const newSheet = {
         id: Date.now(),
-        name: `Лист ${state.sheets.length + 1}`,
+        name: `Лист ${sheetNumber}`,
         elements: []
       };
       state.sheets.push(newSheet);
@@ -197,6 +218,11 @@
       state.currentSheet = index;
       state.elements = state.sheets[index].elements;
       state.selectedElement = null;
+      
+      // Скрываем текстовое поле при переключении листов
+      textInput.style.display = 'none';
+      state.textInputActive = false;
+      
       renderCanvas();
       renderTabs();
     }
@@ -209,6 +235,13 @@
       });
       document.getElementById(`tool-${tool}`).classList.add('active-tool');
       state.selectedElement = null;
+      
+      // Скрываем текстовое поле при переключении инструментов
+      if (tool !== 'text') {
+        textInput.style.display = 'none';
+        state.textInputActive = false;
+      }
+      
       renderCanvas();
     }
 
@@ -243,8 +276,9 @@
       if (state.currentTool === 'text') {
         textInput.style.display = 'block';
         textInput.style.left = `${e.offsetX}px`;
-        textInput.style.top = `${e.offsetY + 20}px`; // Смещение для удобства
+        textInput.style.top = `${e.offsetY}px`; // Поле ввода появляется прямо на месте клика
         textInput.focus();
+        state.textInputActive = true;
         return;
       }
 
@@ -290,13 +324,14 @@
     // 6. Текст
     textInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
+        e.preventDefault();
         const text = textInput.innerText.trim();
         if (text) {
           saveToUndoStack();
           state.elements.push({
             type: 'text',
             x: parseInt(textInput.style.left),
-            y: parseInt(textInput.style.top) + 20, // Корректировка позиции
+            y: parseInt(textInput.style.top), // Текст появляется точно там же, где и поле ввода
             content: text,
             color: '#000000'
           });
@@ -305,6 +340,7 @@
         }
         textInput.style.display = 'none';
         textInput.innerText = '';
+        state.textInputActive = false;
       }
     });
 
@@ -334,6 +370,7 @@
 
     // 8. Экспорт в PNG
     function exportToPNG() {
+      // Создаем временный canvas для экспорта
       const tempCanvas = document.createElement('canvas');
       const tempCtx = tempCanvas.getContext('2d');
       tempCanvas.width = canvas.width;
@@ -380,6 +417,7 @@
         tempCtx.stroke();
       });
       
+      // Создаем ссылку для скачивания
       const link = document.createElement('a');
       link.download = `${state.sheets[state.currentSheet].name}.png`;
       link.href = tempCanvas.toDataURL('image/png');
@@ -496,17 +534,15 @@
       const saved = localStorage.getItem('levelDesigner');
       if (saved) {
         state = JSON.parse(saved);
-        // Очистка кэша принудительно
-        if (performance.navigation.type === 1) {
-          localStorage.removeItem('levelDesigner');
-          state.sheets = [];
-          state.elements = [];
+        // Проверяем, есть ли уже листы
+        if (state.sheets.length === 0) {
           createSheet();
-          return;
+        } else {
+          state.elements = state.sheets[state.currentSheet].elements;
         }
+      } else {
+        createSheet();
       }
-      if (state.sheets.length === 0) createSheet();
-      state.elements = state.sheets[state.currentSheet].elements;
       state.undoStack = [];
       state.redoStack = [];
       renderTabs();
@@ -537,23 +573,27 @@
 
     // 13. Принудительная очистка кэша
     function clearCache() {
-      localStorage.removeItem('levelDesigner');
-      location.reload(true);
+      if (confirm('Очистить все данные и перезагрузить страницу?')) {
+        localStorage.removeItem('levelDesigner');
+        location.reload();
+      }
     }
 
-    // Запуск
-    loadFromLocalStorage();
-    setActiveTool('select');
-
-    // Для отладки: добавим кнопку очистки кэша
+    // Добавляем кнопку очистки кэша
     const clearBtn = document.createElement('button');
-    clearBtn.textContent = 'Очистить кэш (для разработки)';
+    clearBtn.textContent = 'Очистить кэш';
     clearBtn.style.position = 'fixed';
     clearBtn.style.bottom = '10px';
     clearBtn.style.right = '10px';
     clearBtn.style.zIndex = '1000';
+    clearBtn.style.padding = '5px 10px';
+    clearBtn.style.fontSize = '12px';
     clearBtn.onclick = clearCache;
     document.body.appendChild(clearBtn);
+
+    // Запуск
+    loadFromLocalStorage();
+    setActiveTool('select');
   </script>
 </body>
 </html>
