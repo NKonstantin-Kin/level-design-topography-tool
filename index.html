@@ -9,12 +9,14 @@
     #toolbar { width: 200px; background: #f5f5f5; border-right: 1px solid #ddd; padding: 10px; overflow-y: auto; }
     #canvas-container { flex: 1; position: relative; overflow: auto; }
     canvas { display: block; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); cursor: crosshair; }
-    .tabs { display: flex; background: #eee; padding: 8px 8px 0; }
-    .tab { padding: 8px 16px; margin-right: 4px; background: #ddd; border-radius: 4px 4px 0 0; cursor: pointer; }
+    .tabs { display: flex; background: #eee; padding: 8px 8px 0; flex-wrap: wrap; }
+    .tab { padding: 8px 16px; margin: 0 4px 4px 0; background: #ddd; border-radius: 4px 4px 0 0; cursor: pointer; position: relative; }
     .tab.active { background: white; font-weight: bold; }
+    .tab-close { position: absolute; right: 2px; top: 2px; font-size: 12px; color: #666; }
     .tool-section { margin-bottom: 15px; }
     button { padding: 8px; margin: 4px 0; width: 100%; }
     button.active-tool { background: #4CAF50; color: white; }
+    #text-input { position: absolute; border: 1px dashed #000; padding: 4px; display: none; }
   </style>
 </head>
 <body>
@@ -40,6 +42,7 @@
     <div id="canvas-container">
       <div class="tabs" id="sheet-tabs"></div>
       <canvas id="sheet"></canvas>
+      <div id="text-input" contenteditable="true"></div>
     </div>
   </div>
 
@@ -47,6 +50,7 @@
     // Инициализация
     const canvas = document.getElementById('sheet');
     const ctx = canvas.getContext('2d');
+    const textInput = document.getElementById('text-input');
     canvas.width = 3000;
     canvas.height = 2000;
 
@@ -54,6 +58,7 @@
       sheets: [],
       currentSheet: 0,
       currentTool: 'line',
+      selectedElement: null,
       grid: {
         enabled: true,
         snap: true,
@@ -82,7 +87,7 @@
       }
     }
 
-    // 2. Листы
+    // 2. Листы (с удалением)
     function createSheet() {
       if (state.sheets.length >= 5) return alert('Максимум 5 листов!');
       const newSheet = {
@@ -96,9 +101,19 @@
       saveToLocalStorage();
     }
 
+    function deleteSheet(index) {
+      if (state.sheets.length <= 1) return alert('Должен остаться хотя бы один лист!');
+      state.sheets.splice(index, 1);
+      if (state.currentSheet >= index) state.currentSheet = Math.max(0, state.currentSheet - 1);
+      renderTabs();
+      switchSheet(state.currentSheet);
+      saveToLocalStorage();
+    }
+
     function switchSheet(index) {
       state.currentSheet = index;
       state.elements = state.sheets[index].elements;
+      state.selectedElement = null;
       renderCanvas();
       renderTabs();
     }
@@ -110,53 +125,149 @@
         btn.classList.remove('active-tool');
       });
       document.getElementById(`tool-${tool}`).classList.add('active-tool');
+      state.selectedElement = null;
+      renderCanvas();
     }
 
-    // 4. Рисование
+    // 4. Рисование (линии, прямоугольники, текст)
     canvas.addEventListener('mousedown', (e) => {
-      if (state.currentTool === 'line' || state.currentTool === 'rect') {
-        const startX = e.offsetX;
-        const startY = e.offsetY;
-        
-        function onMouseMove(e) {
-          renderCanvas();
-          ctx.beginPath();
-          ctx.strokeStyle = '#000000';
-          ctx.lineWidth = 2;
-          
-          if (state.currentTool === 'line') {
-            ctx.moveTo(startX, startY);
-            ctx.lineTo(e.offsetX, e.offsetY);
-          } else if (state.currentTool === 'rect') {
-            ctx.rect(startX, startY, e.offsetX - startX, e.offsetY - startY);
-          }
-          
-          ctx.stroke();
-        }
+      if (state.currentTool === 'text') {
+        textInput.style.display = 'block';
+        textInput.style.left = `${e.offsetX}px`;
+        textInput.style.top = `${e.offsetY}px`;
+        textInput.focus();
+        return;
+      }
 
-        function onMouseUp(e) {
-          canvas.removeEventListener('mousemove', onMouseMove);
-          canvas.removeEventListener('mouseup', onMouseUp);
-          
+      const startX = e.offsetX;
+      const startY = e.offsetY;
+      
+      function onMouseMove(e) {
+        renderCanvas();
+        ctx.beginPath();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        
+        if (state.currentTool === 'line') {
+          ctx.moveTo(startX, startY);
+          ctx.lineTo(e.offsetX, e.offsetY);
+        } else if (state.currentTool === 'rect') {
+          ctx.rect(startX, startY, e.offsetX - startX, e.offsetY - startY);
+        }
+        
+        ctx.stroke();
+      }
+
+      function onMouseUp(e) {
+        canvas.removeEventListener('mousemove', onMouseMove);
+        canvas.removeEventListener('mouseup', onMouseUp);
+        
+        state.elements.push({
+          type: state.currentTool,
+          x1: startX,
+          y1: startY,
+          x2: e.offsetX,
+          y2: e.offsetY,
+          color: '#000000'
+        });
+        saveToLocalStorage();
+      }
+
+      canvas.addEventListener('mousemove', onMouseMove);
+      canvas.addEventListener('mouseup', onMouseUp);
+    });
+
+    // Обработка текста
+    textInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const text = textInput.innerText.trim();
+        if (text) {
           state.elements.push({
-            type: state.currentTool,
-            x1: startX,
-            y1: startY,
-            x2: e.offsetX,
-            y2: e.offsetY,
+            type: 'text',
+            x: parseInt(textInput.style.left),
+            y: parseInt(textInput.style.top),
+            content: text,
             color: '#000000'
           });
           saveToLocalStorage();
+          renderCanvas();
         }
-
-        canvas.addEventListener('mousemove', onMouseMove);
-        canvas.addEventListener('mouseup', onMouseUp);
+        textInput.style.display = 'none';
+        textInput.innerText = '';
       }
     });
 
-    // 5. Рендер элементов
+    // 5. Удаление элементов (Delete)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Delete' && state.selectedElement !== null) {
+        state.elements.splice(state.selectedElement, 1);
+        state.selectedElement = null;
+        saveToLocalStorage();
+        renderCanvas();
+      }
+      // Ctrl+Z
+      if (e.ctrlKey && e.key === 'z') {
+        if (state.elements.length > 0) {
+          state.elements.pop();
+          saveToLocalStorage();
+          renderCanvas();
+        }
+      }
+      // Ctrl+S
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        alert('Проект сохранён локально!');
+      }
+    });
+
+    // 6. Выбор элемента
+    canvas.addEventListener('click', (e) => {
+      if (state.currentTool !== 'select') return;
+      
+      const x = e.offsetX;
+      const y = e.offsetY;
+      
+      state.elements.forEach((el, index) => {
+        if (el.type === 'line') {
+          // Упрощённая проверка клика рядом с линией
+          const distance = distanceToLine(x, y, el.x1, el.y1, el.x2, el.y2);
+          if (distance < 10) state.selectedElement = index;
+        } else if (el.type === 'rect') {
+          if (x >= Math.min(el.x1, el.x2) && x <= Math.max(el.x1, el.x2) &&
+              y >= Math.min(el.y1, el.y2) && y <= Math.max(el.y1, el.y2)) {
+            state.selectedElement = index;
+          }
+        }
+      });
+      renderCanvas();
+    });
+
+    function distanceToLine(x, y, x1, y1, x2, y2) {
+      const A = x - x1;
+      const B = y - y1;
+      const C = x2 - x1;
+      const D = y2 - y1;
+      const dot = A * C + B * D;
+      const len_sq = C * C + D * D;
+      let param = -1;
+      if (len_sq !== 0) param = dot / len_sq;
+      let xx, yy;
+      if (param < 0) {
+        xx = x1;
+        yy = y1;
+      } else if (param > 1) {
+        xx = x2;
+        yy = y2;
+      } else {
+        xx = x1 + param * C;
+        yy = y1 + param * D;
+      }
+      return Math.sqrt((x - xx) ** 2 + (y - yy) ** 2);
+    }
+
+    // 7. Рендер элементов (с выделением)
     function renderElements() {
-      state.elements.forEach(el => {
+      state.elements.forEach((el, index) => {
         ctx.beginPath();
         ctx.strokeStyle = el.color;
         ctx.lineWidth = 2;
@@ -164,15 +275,32 @@
         if (el.type === 'line') {
           ctx.moveTo(el.x1, el.y1);
           ctx.lineTo(el.x2, el.y2);
+          if (index === state.selectedElement) {
+            ctx.strokeStyle = '#FF0000';
+            ctx.lineWidth = 3;
+          }
         } else if (el.type === 'rect') {
           ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
+          if (index === state.selectedElement) {
+            ctx.strokeStyle = '#FF0000';
+            ctx.lineWidth = 3;
+          }
+        } else if (el.type === 'text') {
+          ctx.fillStyle = el.color;
+          ctx.font = '16px Arial';
+          ctx.fillText(el.content, el.x, el.y);
+          if (index === state.selectedElement) {
+            ctx.strokeStyle = '#FF0000';
+            ctx.lineWidth = 1;
+            ctx.strokeText(el.content, el.x, el.y);
+          }
         }
         
         ctx.stroke();
       });
     }
 
-    // 6. Сохранение
+    // 8. Сохранение
     function saveToLocalStorage() {
       state.sheets[state.currentSheet].elements = state.elements;
       localStorage.setItem('levelDesigner', JSON.stringify(state));
@@ -187,7 +315,7 @@
       renderCanvas();
     }
 
-    // 7. Общий рендер
+    // 9. Общий рендер
     function renderCanvas() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawGrid();
@@ -200,7 +328,10 @@
       state.sheets.forEach((sheet, index) => {
         const tab = document.createElement('div');
         tab.className = `tab ${index === state.currentSheet ? 'active' : ''}`;
-        tab.textContent = sheet.name;
+        tab.innerHTML = `
+          ${sheet.name}
+          <span class="tab-close" data-index="${index}">×</span>
+        `;
         tab.onclick = () => switchSheet(index);
         tabsContainer.appendChild(tab);
       });
@@ -209,9 +340,17 @@
       newTab.textContent = '+';
       newTab.onclick = createSheet;
       tabsContainer.appendChild(newTab);
+
+      // Обработчики удаления листов
+      document.querySelectorAll('.tab-close').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          deleteSheet(parseInt(btn.dataset.index));
+        };
+      });
     }
 
-    // 8. Обработчики
+    // 10. Обработчики
     document.getElementById('new-sheet').addEventListener('click', createSheet);
     document.getElementById('toggle-grid').addEventListener('click', function() {
       state.grid.enabled = !state.grid.enabled;
