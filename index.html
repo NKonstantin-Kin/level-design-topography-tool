@@ -955,3 +955,37 @@ function stopDrag() {
 // Назначаем обработчик на контейнер
 document.getElementById('shapes-container').addEventListener('mousedown', startDrag);
 // ====== КОНЕЦ КОДА ДЛЯ ПЕРЕТАСКИВАНИЯ ====== //
+// ====== ИСПРАВЛЕННЫЙ КОД ДЛЯ ПЕРЕТАСКИВАНИЯ ====== //
+let selectedRect = null;
+let offsetX = 0, offsetY = 0;
+
+// Функция для начала перетаскивания
+function startDrag(e) {
+  if (e.target.classList.contains('transform-rect')) {  // Убрана лишняя скобка
+    selectedRect = e.target;
+    const rect = selectedRect.getBoundingClientRect();
+    offsetX = e.clientX - rect.left;
+    offsetY = e.clientY - rect.top;
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', stopDrag);
+  }
+}
+
+// Функция перетаскивания
+function drag(e) {
+  if (selectedRect) {
+    selectedRect.style.left = (e.clientX - offsetX) + 'px';
+    selectedRect.style.top = (e.clientY - offsetY) + 'px';
+  }
+}
+
+// Функция завершения перетаскивания
+function stopDrag() {
+  selectedRect = null;
+  document.removeEventListener('mousemove', drag);
+  document.removeEventListener('mouseup', stopDrag);
+}
+
+// Назначаем обработчик на контейнер
+document.getElementById('shapes-container').addEventListener('mousedown', startDrag);
+// ====== КОНЕЦ ИСПРАВЛЕНИЙ ====== //
