@@ -237,7 +237,63 @@
     <button id="rename-confirm">OK</button>
     <button id="rename-cancel">Отмена</button>
   </div>
+// ====== ФИНАЛЬНЫЙ ИСПРАВЛЕННЫЙ КОД ====== //
+// 1. Создаём контейнер для фигур с правильным позиционированием
+const shapesContainer = document.createElement('div');
+shapesContainer.id = 'shapes-container';
+shapesContainer.style.position = 'absolute';
+shapesContainer.style.top = '40px'; // Отступ под панель инструментов
+shapesContainer.style.left = '200px'; // Отступ под панель листов
+shapesContainer.style.right = '0';
+shapesContainer.style.bottom = '0';
+shapesContainer.style.overflow = 'hidden';
+document.body.appendChild(shapesContainer);
 
+// 2. Стили для прямоугольника
+const rectStyles = document.createElement('style');
+rectStyles.textContent = `
+  .transform-rect {
+    position: absolute;
+    border: 2px dashed #0078d7;
+    background: rgba(0, 120, 215, 0.1);
+    cursor: move;
+    width: 150px;
+    height: 100px;
+  }
+`;
+document.head.appendChild(rectStyles);
+
+// 3. Логика перетаскивания
+let selectedElement = null;
+let startX, startY;
+
+document.getElementById('add-rect-btn').onclick = function() {
+  const rect = document.createElement('div');
+  rect.className = 'transform-rect';
+  rect.style.left = '50%';
+  rect.style.top = '50%';
+  
+  rect.addEventListener('mousedown', function(e) {
+    e.stopPropagation();
+    selectedElement = rect;
+    startX = e.clientX - rect.getBoundingClientRect().left;
+    startY = e.clientY - rect.getBoundingClientRect().top;
+  });
+
+  shapesContainer.appendChild(rect);
+};
+
+document.addEventListener('mousemove', function(e) {
+  if (selectedElement) {
+    selectedElement.style.left = (e.clientX - startX) + 'px';
+    selectedElement.style.top = (e.clientY - startY) + 'px';
+  }
+});
+
+document.addEventListener('mouseup', function() {
+  selectedElement = null;
+});
+// ====== КОНЕЦ КОДА ====== //
   <script>
     // ========== КОНФИГУРАЦИЯ ==========
     const CONFIG = {
@@ -827,9 +883,7 @@ document.getElementById('add-rect-btn').addEventListener('click', function() {
 });
 // ====== КОНЕЦ КОДА ДЛЯ ПРЯМОУГОЛЬНИКА ====== //
   </script>
-</body>
-</html>
-// ====== ФИКСЫ ДЛЯ ПРЯМОУГОЛЬНИКА ====== //
+  // ====== ФИКСЫ ДЛЯ ПРЯМОУГОЛЬНИКА ====== //
 // 1. Меняем <div id="canvas"> на <canvas> (если это ещё не сделано)
 if (document.getElementById('canvas').tagName !== 'CANVAS') {
   const canvasDiv = document.getElementById('canvas');
@@ -989,3 +1043,7 @@ function stopDrag() {
 // Назначаем обработчик на контейнер
 document.getElementById('shapes-container').addEventListener('mousedown', startDrag);
 // ====== КОНЕЦ ИСПРАВЛЕНИЙ ====== //
+
+</body>
+</html>
+
