@@ -829,3 +829,39 @@ document.getElementById('add-rect-btn').addEventListener('click', function() {
   </script>
 </body>
 </html>
+// ====== ФИКСЫ ДЛЯ ПРЯМОУГОЛЬНИКА ====== //
+// 1. Меняем <div id="canvas"> на <canvas> (если это ещё не сделано)
+if (document.getElementById('canvas').tagName !== 'CANVAS') {
+  const canvasDiv = document.getElementById('canvas');
+  const newCanvas = document.createElement('canvas');
+  newCanvas.id = 'canvas';
+  newCanvas.width = canvasDiv.offsetWidth;
+  newCanvas.height = canvasDiv.offsetHeight;
+  canvasDiv.parentNode.replaceChild(newCanvas, canvasDiv);
+}
+
+// 2. Добавляем CSS для позиционирования
+const canvasFixStyles = document.createElement('style');
+canvasFixStyles.textContent = `
+  #canvas {
+    position: relative;  // Чтобы прямоугольники позиционировались внутри
+    background: white;
+  }
+`;
+document.head.appendChild(canvasFixStyles);
+
+// 3. Обновляем функцию создания прямоугольника (чтобы он появлялся в центре)
+document.getElementById('add-rect-btn').onclick = function() {
+  const rect = document.createElement('div');
+  rect.className = 'transform-rect';
+  rect.style.width = '150px';
+  rect.style.height = '100px';
+  rect.style.left = '50%';
+  rect.style.top = '50%';
+  rect.style.transform = 'translate(-50%, -50%)';
+  
+  // Добавляем на canvas
+  document.getElementById('canvas').appendChild(rect);
+  console.log('Прямоугольник создан! Проверьте его в центре холста.');
+};
+// ====== КОНЕЦ ФИКСОВ ====== //
