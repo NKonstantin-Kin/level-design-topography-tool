@@ -922,3 +922,36 @@ document.getElementById('add-rect-btn').onclick = function() {
   console.log('Прямоугольник создан! Проверьте центр холста.');
 };
 // ====== КОНЕЦ ФИКСА ====== //
+// ====== КОД ДЛЯ ПЕРЕТАСКИВАНИЯ ПРЯМОУГОЛЬНИКА ====== //
+let selectedRect = null;
+let offsetX = 0, offsetY = 0;
+
+// Функция для начала перетаскивания
+function startDrag(e) {
+  if (e.target.classList.contains('transform-rect')) {
+    selectedRect = e.target;
+    offsetX = e.clientX - selectedRect.getBoundingClientRect().left;
+    offsetY = e.clientY - selectedRect.getBoundingClientRect().top;
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', stopDrag);
+  }
+}
+
+// Функция перетаскивания
+function drag(e) {
+  if (selectedRect) {
+    selectedRect.style.left = (e.clientX - offsetX) + 'px';
+    selectedRect.style.top = (e.clientY - offsetY) + 'px';
+  }
+}
+
+// Функция завершения перетаскивания
+function stopDrag() {
+  selectedRect = null;
+  document.removeEventListener('mousemove', drag);
+  document.removeEventListener('mouseup', stopDrag);
+}
+
+// Назначаем обработчик на контейнер
+document.getElementById('shapes-container').addEventListener('mousedown', startDrag);
+// ====== КОНЕЦ КОДА ДЛЯ ПЕРЕТАСКИВАНИЯ ====== //
