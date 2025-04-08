@@ -187,6 +187,17 @@
       border: none;
       border-radius: 4px;
     }
+    .transform-handle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: #1abc9c;
+      border: 2px solid white;
+      border-radius: 50%;
+      pointer-events: all;
+      cursor: pointer;
+      z-index: 20;
+    }
   </style>
 </head>
 <body>
@@ -228,6 +239,7 @@
       <div class="tabs" id="sheet-tabs"></div>
       <canvas id="sheet"></canvas>
       <div id="text-input" contenteditable="true"></div>
+      <div id="transform-handles"></div>
     </div>
   </div>
 
@@ -243,13 +255,17 @@
     const CONFIG = {
       CANVAS_WIDTH: 2500,
       CANVAS_HEIGHT: 1500,
-      GRID_COLOR: '#e0e0e0'
+      GRID_COLOR: '#e0e0e0',
+      HANDLE_SIZE: 8,
+      HANDLE_COLOR: '#1abc9c',
+      SELECTION_COLOR: '#FF0000'
     };
 
     // ========== ИНИЦИАЛИЗАЦИЯ ==========
     const canvas = document.getElementById('sheet');
     const ctx = canvas.getContext('2d');
     const textInput = document.getElementById('text-input');
+    const transformHandles = document.getElementById('transform-handles');
     canvas.width = CONFIG.CANVAS_WIDTH;
     canvas.height = CONFIG.CANVAS_HEIGHT;
 
@@ -272,7 +288,12 @@
       textInputActive: false,
       isDrawing: false,
       startX: 0,
-      startY: 0
+      startY: 0,
+      isDragging: false,
+      dragStartX: 0,
+      dragStartY: 0,
+      transformHandle: null,
+      originalElement: null
     };
 
     // ========== ОСНОВНЫЕ ФУНКЦИИ ==========
@@ -357,7 +378,7 @@
         }
         
         if (index === state.selectedElement) {
-          ctx.strokeStyle = '#FF0000';
+          ctx.strokeStyle = CONFIG.SELECTION_COLOR;
           ctx.lineWidth = 3;
           if (el.type === 'line') {
             ctx.moveTo(el.x1, el.y1);
@@ -378,10 +399,40 @@
       });
     }
 
+    function renderTransformHandles() {
+      transformHandles.innerHTML = '';
+      if (state.selectedElement === null) return;
+      
+      const element = state.elements[state.selectedElement];
+      if (!element || element.type !== 'rect') return;
+      
+      const handles = [
+        { x: element.x1, y: element.y1, type: 'nw' },
+        { x: (element.x1 + element.x2) / 2, y: element.y1, type: 'n' },
+        { x: element.x2, y: element.y1, type: 'ne' },
+        { x: element.x1, y: (element.y1 + element.y2) / 2, type: 'w' },
+        { x: element.x2, y: (element.y1 + element.y2) / 2, type: 'e' },
+        { x: element.x1, y: element.y2, type: 'sw' },
+        { x: (element.x1 + element.x2) / 2, y: element.y2, type: 's' },
+        { x: element.x2, y: element.y2, type: 'se' }
+      ];
+      
+      handles.forEach((handle, index) => {
+        const handleEl = document.createElement('div');
+        handleEl.className = 'transform-handle';
+        handleEl.style.left = `${handle.x - CONFIG.HANDLE_SIZE / 2}px`;
+        handleEl.style.top = `${handle.y - CONFIG.HANDLE_SIZE / 2}px`;
+        handleEl.dataset.type = handle.type;
+        handleEl.dataset.index = state.selectedElement;
+        transformHandles.appendChild(handleEl);
+      });
+    }
+
     function renderCanvas() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawGrid();
       renderElements();
+      renderTransformHandles();
     }
 
     // ========== РАБОТА С ЛИСТАМИ ==========
@@ -526,6 +577,16 @@
       return Math.sqrt((x - xx) ** 2 + (y - yy) ** 2);
     }
 
+    function isPointInHandle(x, y, handleX, handleY) {
+      const handleSize = CONFIG.HANDLE_SIZE + 4; // Добавляем отступ для удобства
+      return (
+        x >= handleX - handleSize / 2 &&
+        x <= handleX + handleSize / 2 &&
+        y >= handleY - handleSize / 2 &&
+        y <= handleY + handleSize / 2
+      );
+    }
+
     // ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
     canvas.addEventListener('mousedown', (e) => {
       const rect = canvas.getBoundingClientRect();
@@ -533,6 +594,30 @@
       const y = e.clientY - rect.top;
 
       if (state.currentTool === 'select') {
+        // Проверяем, кликнули ли на точку трансформации
+        if (state.selectedElement !== null && state.elements[state.selectedElement].type === 'rect') {
+          const element = state.elements[state.selectedElement];
+          const handles = [
+            { x: element.x1, y: element.y1, type: 'nw' },
+            { x: (element.x1 + element.x2) / 2, y: element.y1, type: 'n' },
+            { x: element.x2, y: element.y1, type: 'ne' },
+            { x: element.x1, y: (element.y1 + element.y2) / 2, type: 'w' },
+            { x: element.x2, y: (element.y1 + element.y2) / 2, type: 'e' },
+            { x: element.x1, y: element.y2, type: 'sw' },
+            { x: (element.x1 + element.x2) / 2, y: element.y2, type: 's' },
+            { x: element.x2, y: element.y2, type: 'se' }
+          ];
+          
+          for (const handle of handles) {
+            if (isPointInHandle(x, y, handle.x, handle.y)) {
+              state.transformHandle = handle.type;
+              state.originalElement = JSON.parse(JSON.stringify(element));
+              return;
+            }
+          }
+        }
+        
+        // Если не кликнули на точку трансформации, проверяем выделение элемента
         state.selectedElement = null;
         
         state.elements.forEach((el, index) => {
@@ -561,6 +646,15 @@
             }
           }
         });
+        
+        // Если элемент выбран, начинаем перетаскивание
+        if (state.selectedElement !== null) {
+          state.isDragging = true;
+          state.dragStartX = x;
+          state.dragStartY = y;
+          saveToUndoStack();
+        }
+        
         renderCanvas();
         return;
       }
@@ -592,22 +686,88 @@
     });
 
     canvas.addEventListener('mousemove', (e) => {
-      if (!state.isDrawing) return;
-      
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      const currentElement = state.elements[state.elements.length - 1];
-
-      if (currentElement) {
-        currentElement.x2 = x;
-        currentElement.y2 = y;
+      
+      if (state.isDragging && state.selectedElement !== null) {
+        const element = state.elements[state.selectedElement];
+        const dx = x - state.dragStartX;
+        const dy = y - state.dragStartY;
+        
+        if (element.type === 'line') {
+          element.x1 += dx;
+          element.y1 += dy;
+          element.x2 += dx;
+          element.y2 += dy;
+        } else if (element.type === 'rect') {
+          element.x1 += dx;
+          element.y1 += dy;
+          element.x2 += dx;
+          element.y2 += dy;
+        } else if (element.type === 'circle') {
+          element.x1 += dx;
+          element.y1 += dy;
+          element.x2 += dx;
+          element.y2 += dy;
+        } else if (element.type === 'text') {
+          element.x += dx;
+          element.y += dy;
+        }
+        
+        state.dragStartX = x;
+        state.dragStartY = y;
         renderCanvas();
+      } else if (state.transformHandle !== null && state.selectedElement !== null) {
+        const element = state.elements[state.selectedElement];
+        const original = state.originalElement;
+        
+        switch (state.transformHandle) {
+          case 'nw':
+            element.x1 = x;
+            element.y1 = y;
+            break;
+          case 'n':
+            element.y1 = y;
+            break;
+          case 'ne':
+            element.x2 = x;
+            element.y1 = y;
+            break;
+          case 'w':
+            element.x1 = x;
+            break;
+          case 'e':
+            element.x2 = x;
+            break;
+          case 'sw':
+            element.x1 = x;
+            element.y2 = y;
+            break;
+          case 's':
+            element.y2 = y;
+            break;
+          case 'se':
+            element.x2 = x;
+            element.y2 = y;
+            break;
+        }
+        renderCanvas();
+      } else if (state.isDrawing) {
+        const currentElement = state.elements[state.elements.length - 1];
+        if (currentElement) {
+          currentElement.x2 = x;
+          currentElement.y2 = y;
+          renderCanvas();
+        }
       }
     });
 
     canvas.addEventListener('mouseup', () => {
       state.isDrawing = false;
+      state.isDragging = false;
+      state.transformHandle = null;
+      state.originalElement = null;
       saveToLocalStorage();
     });
 
