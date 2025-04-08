@@ -865,3 +865,60 @@ document.getElementById('add-rect-btn').onclick = function() {
   console.log('Прямоугольник создан! Проверьте его в центре холста.');
 };
 // ====== КОНЕЦ ФИКСОВ ====== //
+// ====== ФИНАЛЬНЫЙ ФИКС (ВСЁ В ОДНОМ) ====== //
+// 1. Удаляем старый <div id="canvas"> (если есть)
+const oldCanvasDiv = document.getElementById('canvas');
+if (oldCanvasDiv && oldCanvasDiv.tagName === 'DIV') {
+  oldCanvasDiv.remove();
+}
+
+// 2. Создаём контейнер для прямоугольников (отдельно от <canvas>)
+const shapesContainer = document.createElement('div');
+shapesContainer.id = 'shapes-container';
+shapesContainer.style.position = 'absolute';
+shapesContainer.style.top = '0';
+shapesContainer.style.left = '0';
+shapesContainer.style.width = '100%';
+shapesContainer.style.height = '100%';
+shapesContainer.style.pointerEvents = 'none'; // Чтобы не блокировать рисование
+
+// Вставляем его после <canvas>
+const mainCanvas = document.querySelector('canvas');
+mainCanvas.parentNode.appendChild(shapesContainer);
+
+// 3. Обновляем стили
+const rectStyles = document.createElement('style');
+rectStyles.textContent = `
+  .transform-rect {
+    position: absolute;
+    border: 2px dashed #0078d7;
+    background: rgba(0, 120, 215, 0.1);
+    cursor: move;
+    pointer-events: auto; // Разрешаем взаимодействие
+  }
+  .resize-handle {
+    width: 10px;
+    height: 10px;
+    background: white;
+    border: 2px solid #0078d7;
+    position: absolute;
+    pointer-events: auto;
+  }
+`;
+document.head.appendChild(rectStyles);
+
+// 4. Новая функция для кнопки (с проверками)
+document.getElementById('add-rect-btn').onclick = function() {
+  const rect = document.createElement('div');
+  rect.className = 'transform-rect';
+  rect.style.width = '150px';
+  rect.style.height = '100px';
+  rect.style.left = '50%';
+  rect.style.top = '50%';
+  rect.style.transform = 'translate(-50%, -50%)';
+  
+  // Добавляем в контейнер для фигур
+  document.getElementById('shapes-container').appendChild(rect);
+  console.log('Прямоугольник создан! Проверьте центр холста.');
+};
+// ====== КОНЕЦ ФИКСА ====== //
