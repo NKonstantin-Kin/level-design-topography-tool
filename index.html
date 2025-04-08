@@ -1,524 +1,132 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <title>Топографический редактор PRO</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Level Design Tool</title>
   <style>
-    /* Все стили остались без изменений */
-    body { margin: 0; font-family: Arial; background: #f5f5f5; overflow: hidden; }
-    #app { display: flex; height: 100vh; }
-    #toolbar { width: 220px; background: #2c3e50; padding: 15px; color: white; box-shadow: 0 0 10px rgba(0,0,0,0.3); overflow-y: auto; }
-    .tool-section { margin-bottom: 20px; border-bottom: 1px solid #34495e; padding-bottom: 15px; }
-    .tool-section h3 { color: #1abc9c; margin-top: 0; text-align: center; }
-    .tool-btn { display: block; margin: 8px 0; padding: 10px; width: 100%; background: #34495e; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; text-align: left; }
-    .tool-btn:hover { background: #3d5166; transform: translateY(-2px); }
-    .tool-btn.active { background: #1abc9c; font-weight: bold; }
-    #canvas-container { flex: 1; position: relative; overflow: auto; background: #ecf0f1; }
-    canvas { display: block; background: white; box-shadow: 0 0 15px rgba(0,0,0,0.1); margin: 20px auto; }
-    .tabs { display: flex; background: #34495e; padding: 8px 8px 0; flex-wrap: wrap; }
-    .tab { padding: 8px 16px; margin: 0 4px 4px 0; background: #2c3e50; border-radius: 4px 4px 0 0; cursor: pointer; position: relative; color: white; transition: all 0.2s; }
-    .tab:hover { background: #3d5166; }
-    .tab.active { background: #1abc9c; font-weight: bold; }
-    .tab-close { position: absolute; right: 5px; top: 5px; font-size: 12px; color: #e74c3c; background: white; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; line-height: 1; }
-    .tab-edit { position: absolute; right: 25px; top: 5px; font-size: 12px; color: #3498db; }
-    #text-input { position: absolute; border: 1px dashed #000; padding: 4px; display: none; background: white; z-index: 10; min-width: 100px; font-family: Arial; font-size: 16px; }
-    #rename-dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; border: 1px solid #ccc; box-shadow: 0 0 20px rgba(0,0,0,0.2); z-index: 100; display: none; }
-    #rename-dialog h3 { margin-top: 0; color: #2c3e50; }
-    #rename-dialog input { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; }
-    #rename-dialog button { padding: 8px 15px; margin-right: 10px; border: none; border-radius: 4px; cursor: pointer; }
-    #rename-confirm { background: #1abc9c; color: white; }
-    #rename-cancel { background: #e74c3c; color: white; }
-    .grid-controls { display: flex; flex-direction: column; gap: 10px; }
-    .grid-controls label { display: flex; justify-content: space-between; align-items: center; color: white; }
-    .grid-controls input { width: 60px; padding: 5px; border-radius: 4px; border: 1px solid #ddd; }
-    #color-picker { width: 100%; height: 40px; margin: 10px 0; cursor: pointer; border: none; border-radius: 4px; }
-    .shape-library { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
-    .shape-btn { padding: 8px; background: #34495e; border: none; border-radius: 4px; color: white; cursor: pointer; transition: all 0.2s; }
-    .shape-btn:hover { background: #3d5166; }
-    .selection-box { position: absolute; border: 2px dashed #1abc9c; pointer-events: none; display: none; }
-    .control-point { position: absolute; width: 8px; height: 8px; background: #1abc9c; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: all; cursor: move; }
+    body { margin: 0; font-family: Arial; }
+    #toolbar { background: #f0f0f0; padding: 10px; display: flex; gap: 10px; }
+    #canvas-container { display: flex; }
+    #sheets-panel { width: 200px; background: #e0e0e0; padding: 10px; }
+    #canvas { border: 1px solid #000; cursor: crosshair; }
+    button.active { background: #0078d7; color: white; }
   </style>
 </head>
 <body>
-  <div id="app">
-    <div id="toolbar">
-      <!-- Интерфейс остался без изменений -->
-      <div class="tool-section">
-        <h3>Листы</h3>
-        <button id="new-sheet" class="tool-btn">+ Новый лист</button>
-      </div>
-      <div class="tool-section">
-        <h3>Инструменты</h3>
-        <button id="tool-select" class="tool-btn active">🖱️ Выделение</button>
-        <button id="tool-line" class="tool-btn">✏️ Линия</button>
-        <button id="tool-rect" class="tool-btn">⬜ Прямоугольник</button>
-        <button id="tool-circle" class="tool-btn">🔵 Круг</button>
-        <button id="tool-text" class="tool-btn">🔤 Текст</button>
-      </div>
-      <div class="tool-section">
-        <h3>Библиотека фигур</h3>
-        <div class="shape-library">
-          <button class="shape-btn" data-shape="rectangle">Прямоугольник</button>
-          <button class="shape-btn" data-shape="circle">Круг</button>
-          <button class="shape-btn" data-shape="diamond">Ромб</button>
-          <button class="shape-btn" data-shape="triangle">Треугольник</button>
-          <button class="shape-btn" data-shape="hexagon">Шестиугольник</button>
-          <button class="shape-btn" data-shape="arrow">Стрелка</button>
-        </div>
-      </div>
-      <div class="tool-section">
-        <h3>Свойства</h3>
-        <input type="color" id="color-picker" value="#000000">
-        <label>
-          Толщина линии:
-          <input type="range" id="line-width" min="1" max="10" value="2">
-        </label>
-      </div>
-      <div class="tool-section">
-        <h3>Сетка</h3>
-        <div class="grid-controls">
-          <button id="toggle-grid" class="tool-btn">Сетка: Вкл</button>
-          <button id="toggle-snap" class="tool-btn">Привязка: Вкл</button>
-          <label>
-            Шаг сетки:
-            <input type="number" id="grid-step" value="20" min="10">
-          </label>
-        </div>
-      </div>
-      <div class="tool-section">
-        <button id="clear-btn" class="tool-btn">❌ Очистить лист</button>
-        <button id="export-btn" class="tool-btn">💾 Экспорт PNG</button>
-      </div>
-    </div>
-    <div id="canvas-container">
-      <div class="tabs" id="sheet-tabs"></div>
-      <canvas id="sheet"></canvas>
-      <div id="text-input" contenteditable="true"></div>
-      <div id="selection-box" class="selection-box"></div>
-    </div>
+  <div id="toolbar">
+    <button id="add-sheet">+</button>
+    <button id="grid-toggle">Grid: OFF</button>
+    <button id="line-btn">Line</button>
+    <button id="rect-btn">Rect</button>
+    <button id="text-btn">Text</button>
+    <input type="color" id="color-picker" value="#000000">
+    <input type="range" id="line-width" min="1" max="10" value="2">
   </div>
 
-  <div id="rename-dialog">
-    <h3>Переименовать лист</h3>
-    <input type="text" id="rename-input">
-    <button id="rename-confirm">OK</button>
-    <button id="rename-cancel">Отмена</button>
+  <div id="canvas-container">
+    <div id="sheets-panel">
+      <ul id="sheets-list"></ul>
+    </div>
+    <canvas id="canvas" width="800" height="600"></canvas>
   </div>
-
   <script>
-    // ========== КОНФИГУРАЦИЯ ==========
-    const CONFIG = {
-      CANVAS_WIDTH: 2500,
-      CANVAS_HEIGHT: 1500,
-      GRID_COLOR: '#e0e0e0',
-      SHAPE_SNAP_TO_GRID: true,
-      CONTROL_POINT_SIZE: 8
-    };
+  // Состояние приложения
+  let sheets = [];
+  let currentSheetIndex = -1;
+  let isDrawing = false;
+  let currentTool = 'line';
+  let gridEnabled = false;
 
-    // ========== ИНИЦИАЛИЗАЦИЯ ==========
-    const canvas = document.getElementById('sheet');
-    const ctx = canvas.getContext('2d');
-    const textInput = document.getElementById('text-input');
-    const selectionBox = document.getElementById('selection-box');
-    canvas.width = CONFIG.CANVAS_WIDTH;
-    canvas.height = CONFIG.CANVAS_HEIGHT;
+  // DOM-элементы
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const sheetsList = document.getElementById('sheets-list');
 
-    let state = {
-      sheets: [],
-      currentSheet: 0,
-      currentTool: 'select',
-      color: '#000000',
-      lineWidth: 2,
-      selectedElement: null,
-      selectedControlPoint: null,
-      undoStack: [],
-      redoStack: [],
-      grid: {
-        enabled: true,
-        snap: true,
-        step: 20,
-        color: CONFIG.GRID_COLOR
-      },
-      elements: [],
-      renamingSheet: null,
-      textInputActive: false,
-      isDrawing: false,
-      isDragging: false,
-      startX: 0,
-      startY: 0,
-      dragOffsetX: 0,
-      dragOffsetY: 0,
-      controlPoints: []
-    };
+  // Инициализация
+  document.getElementById('add-sheet').addEventListener('click', addSheet);
+  document.getElementById('grid-toggle').addEventListener('click', toggleGrid);
+  document.getElementById('line-btn').addEventListener('click', () => setTool('line'));
+  document.getElementById('rect-btn').addEventListener('click', () => setTool('rect'));
 
-    // ========== ОСНОВНЫЕ ФУНКЦИИ ==========
-    function snapToGrid(value) {
-      return state.grid.snap ? Math.round(value / state.grid.step) * state.grid.step : value;
+  // Рисование на canvas
+  canvas.addEventListener('mousedown', startDrawing);
+  canvas.addEventListener('mousemove', draw);
+  canvas.addEventListener('mouseup', stopDrawing);
+
+  // Функции
+  function addSheet() {
+    const sheetName = prompt("Название листа:", "Лист " + (sheets.length + 1));
+    if (sheetName) {
+      sheets.push({ name: sheetName, shapes: [] });
+      updateSheetsList();
+      selectSheet(sheets.length - 1);
     }
+  }
 
-    function drawGrid() {
-      if (!state.grid.enabled) return;
-      ctx.strokeStyle = state.grid.color;
-      ctx.lineWidth = 1;
-      
-      for (let x = 0; x <= canvas.width; x += state.grid.step) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
-      }
-      
-      for (let y = 0; y <= canvas.height; y += state.grid.step) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-        ctx.stroke();
-      }
+  function updateSheetsList() {
+    sheetsList.innerHTML = '';
+    sheets.forEach((sheet, index) => {
+      const li = document.createElement('li');
+      li.textContent = sheet.name;
+      li.addEventListener('click', () => selectSheet(index));
+      sheetsList.appendChild(li);
+    });
+  }
+      function selectSheet(index) {
+    currentSheetIndex = index;
+    redrawCanvas();
+  }
+
+  function toggleGrid() {
+    gridEnabled = !gridEnabled;
+    document.getElementById('grid-toggle').textContent = gridEnabled ? 'Grid: ON' : 'Grid: OFF';
+    redrawCanvas();
+  }
+
+  function setTool(tool) {
+    currentTool = tool;
+    document.querySelectorAll('#toolbar button').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`${tool}-btn`).classList.add('active');
+  }
+
+  function startDrawing(e) {
+    isDrawing = true;
+    // Заглушка для начала рисования
+  }
+
+  function draw(e) {
+    if (!isDrawing) return;
+    // Заглушка для рисования
+  }
+
+  function stopDrawing() {
+    isDrawing = false;
+  }
+
+  function redrawCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (gridEnabled) drawGrid();
+    // Здесь будет отрисовка фигур из sheets[currentSheetIndex].shapes
+  }
+
+  function drawGrid() {
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1;
+    const step = 20;
+    for (let x = 0; x < canvas.width; x += step) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
     }
-
-    function saveToUndoStack() {
-      state.undoStack.push(JSON.stringify({
-        elements: JSON.parse(JSON.stringify(state.elements)),
-        sheets: JSON.parse(JSON.stringify(state.sheets)),
-        currentSheet: state.currentSheet
-      }));
-      if (state.undoStack.length > 50) state.undoStack.shift();
-      state.redoStack = [];
+    for (let y = 0; y < canvas.height; y += step) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
     }
-
-    function undo() {
-      if (state.undoStack.length === 0) return;
-      
-      state.redoStack.push(JSON.stringify({
-        elements: JSON.parse(JSON.stringify(state.elements)),
-        sheets: JSON.parse(JSON.stringify(state.sheets)),
-        currentSheet: state.currentSheet
-      }));
-      
-      const prevState = JSON.parse(state.undoStack.pop());
-      state.elements = prevState.elements;
-      state.sheets = prevState.sheets;
-      state.currentSheet = prevState.currentSheet;
-      
-      state.elements = state.sheets[state.currentSheet].elements;
-      saveToLocalStorage();
-      renderCanvas();
-      renderTabs();
-      
-      if (state.textInputActive) {
-        textInput.style.display = 'none';
-        state.textInputActive = false;
-      }
-    }
-
-    function createSheet() {
-      if (state.sheets.length >= 10) return alert('Максимум 10 листов!');
-      saveToUndoStack();
-      
-      let sheetNumber = 1;
-      while (state.sheets.some(sheet => sheet.name === `Лист ${sheetNumber}`)) {
-        sheetNumber++;
-      }
-      
-      const newSheet = {
-        id: Date.now(),
-        name: `Лист ${sheetNumber}`,
-        elements: []
-      };
-      state.sheets.push(newSheet);
-      renderTabs();
-      switchSheet(state.sheets.length - 1);
-      saveToLocalStorage();
-    }
-
-    function deleteSheet(index) {
-      if (state.sheets.length <= 1) return alert('Должен остаться хотя бы один лист!');
-      saveToUndoStack();
-      
-      state.sheets.splice(index, 1);
-      if (state.currentSheet >= index) state.currentSheet = Math.max(0, state.currentSheet - 1);
-      renderTabs();
-      switchSheet(state.currentSheet);
-      saveToLocalStorage();
-    }
-
-    function renameSheet(index) {
-      state.renamingSheet = index;
-      document.getElementById('rename-input').value = state.sheets[index].name;
-      document.getElementById('rename-dialog').style.display = 'block';
-    }
-
-    function confirmRename() {
-      const newName = document.getElementById('rename-input').value.trim();
-      if (newName && state.renamingSheet !== null) {
-        saveToUndoStack();
-        state.sheets[state.renamingSheet].name = newName;
-        saveToLocalStorage();
-        renderTabs();
-      }
-      cancelRename();
-    }
-
-    function cancelRename() {
-      document.getElementById('rename-dialog').style.display = 'none';
-      state.renamingSheet = null;
-    }
-
-    function switchSheet(index) {
-      state.currentSheet = index;
-      state.elements = state.sheets[index].elements;
-      state.selectedElement = null;
-      clearControlPoints();
-      
-      textInput.style.display = 'none';
-      state.textInputActive = false;
-      
-      renderCanvas();
-      renderTabs();
-    }
-
-    function renderTabs() {
-      const tabsContainer = document.getElementById('sheet-tabs');
-      tabsContainer.innerHTML = '';
-      state.sheets.forEach((sheet, index) => {
-        const tab = document.createElement('div');
-        tab.className = `tab ${index === state.currentSheet ? 'active' : ''}`;
-        tab.innerHTML = `
-          ${sheet.name}
-          <span class="tab-edit" data-index="${index}">✏️</span>
-          <span class="tab-close" data-index="${index}">×</span>
-        `;
-        tab.onclick = () => switchSheet(index);
-        tabsContainer.appendChild(tab);
-      });
-      
-      const newTab = document.createElement('div');
-      newTab.className = 'tab';
-      newTab.textContent = '+';
-      newTab.onclick = createSheet;
-      tabsContainer.appendChild(newTab);
-
-      document.querySelectorAll('.tab-close').forEach(btn => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          deleteSheet(parseInt(btn.dataset.index));
-        };
-      });
-
-      document.querySelectorAll('.tab-edit').forEach(btn => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          renameSheet(parseInt(btn.dataset.index));
-        };
-      });
-    }
-
-    function createShape(shapeType, x, y, width = 100, height = 60) {
-      const baseShape = {
-        x1: x,
-        y1: y,
-        x2: x + width,
-        y2: y + height,
-        color: state.color,
-        lineWidth: state.lineWidth
-      };
-
-      return { ...baseShape, type: shapeType };
-    }
-
-        function exportToPNG() {
-      const bounds = getCanvasBounds();
-      const width = bounds.maxX - bounds.minX;
-      const height = bounds.maxY - bounds.minY;
-      
-      const tempCanvas = document.createElement('canvas');
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCanvas.width = width;
-      tempCanvas.height = height;
-      
-      // Fill with white background
-      tempCtx.fillStyle = 'white';
-      tempCtx.fillRect(0, 0, width, height);
-      
-      // Draw grid if enabled
-      if (state.grid.enabled) {
-        tempCtx.strokeStyle = state.grid.color;
-        tempCtx.lineWidth = 1;
-        
-        const startX = bounds.minX - (bounds.minX % state.grid.step);
-        const startY = bounds.minY - (bounds.minY % state.grid.step);
-        
-        for (let x = startX; x <= bounds.maxX; x += state.grid.step) {
-          const drawX = x - bounds.minX;
-          if (drawX >= 0 && drawX <= width) {
-            tempCtx.beginPath();
-            tempCtx.moveTo(drawX, 0);
-            tempCtx.lineTo(drawX, height);
-            tempCtx.stroke();
-          }
-        }
-        
-        for (let y = startY; y <= bounds.maxY; y += state.grid.step) {
-          const drawY = y - bounds.minY;
-          if (drawY >= 0 && drawY <= height) {
-            tempCtx.beginPath();
-            tempCtx.moveTo(0, drawY);
-            tempCtx.lineTo(width, drawY);
-            tempCtx.stroke();
-          }
-        }
-      }
-      
-      // Draw elements
-      state.elements.forEach(el => {
-        tempCtx.save();
-        tempCtx.translate(-bounds.minX, -bounds.minY);
-        
-        tempCtx.beginPath();
-        tempCtx.strokeStyle = el.color;
-        tempCtx.fillStyle = el.color;
-        tempCtx.lineWidth = el.lineWidth || state.lineWidth;
-        
-        switch(el.type) {
-          case 'line':
-            tempCtx.moveTo(el.x1, el.y1);
-            tempCtx.lineTo(el.x2, el.y2);
-            break;
-          case 'rectangle':
-            tempCtx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
-            break;
-          case 'circle':
-            const circleRadius = Math.sqrt(Math.pow(el.x2 - el.x1, 2) + Math.pow(el.y2 - el.y1, 2));
-            tempCtx.arc(el.x1, el.y1, circleRadius, 0, Math.PI * 2);
-            break;
-          case 'diamond':
-            const diamondCenterX = (el.x1 + el.x2) / 2;
-            const diamondCenterY = (el.y1 + el.y2) / 2;
-            tempCtx.moveTo(diamondCenterX, el.y1);
-            tempCtx.lineTo(el.x2, diamondCenterY);
-            tempCtx.lineTo(diamondCenterX, el.y2);
-            tempCtx.lineTo(el.x1, diamondCenterY);
-            tempCtx.closePath();
-            break;
-          case 'triangle':
-            tempCtx.moveTo((el.x1 + el.x2) / 2, el.y1);
-            tempCtx.lineTo(el.x2, el.y2);
-            tempCtx.lineTo(el.x1, el.y2);
-            tempCtx.closePath();
-            break;
-          case 'hexagon':
-            const hexWidth = el.x2 - el.x1;
-            const hexHeight = el.y2 - el.y1;
-            const hexCenterX = el.x1 + hexWidth / 2;
-            const hexCenterY = el.y1 + hexHeight / 2;
-            const hexSide = Math.min(hexWidth, hexHeight) / 2;
-            
-            tempCtx.moveTo(hexCenterX + hexSide * Math.cos(0), hexCenterY + hexSide * Math.sin(0));
-            for (let i = 1; i <= 6; i++) {
-              tempCtx.lineTo(
-                hexCenterX + hexSide * Math.cos(i * 2 * Math.PI / 6),
-                hexCenterY + hexSide * Math.sin(i * 2 * Math.PI / 6)
-              );
-            }
-            tempCtx.closePath();
-            break;
-          case 'arrow':
-            const arrowHeadSize = Math.min(Math.abs(el.x2 - el.x1), Math.abs(el.y2 - el.y1)) / 3;
-            const arrowAngle = Math.atan2(el.y2 - el.y1, el.x2 - el.x1);
-            
-            tempCtx.moveTo(el.x1, el.y1);
-            tempCtx.lineTo(el.x2, el.y2);
-            
-            tempCtx.lineTo(
-              el.x2 - arrowHeadSize * Math.cos(arrowAngle - Math.PI / 6),
-              el.y2 - arrowHeadSize * Math.sin(arrowAngle - Math.PI / 6)
-            );
-            tempCtx.moveTo(el.x2, el.y2);
-            tempCtx.lineTo(
-              el.x2 - arrowHeadSize * Math.cos(arrowAngle + Math.PI / 6),
-              el.y2 - arrowHeadSize * Math.sin(arrowAngle + Math.PI / 6)
-            );
-            break;
-          case 'text':
-            tempCtx.font = '16px Arial';
-            tempCtx.fillText(el.content, el.x, el.y);
-            break;
-        }
-        
-        tempCtx.stroke();
-        tempCtx.restore();
-      });
-      
-      tempCanvas.toBlob(blob => {
-        const link = document.createElement('a');
-        link.download = `${state.sheets[state.currentSheet].name}.png`;
-        link.href = URL.createObjectURL(blob);
-        
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        setTimeout(() => URL.revokeObjectURL(link.href), 100);
-      }, 'image/png', 1.0);
-    }
-
-    function getCanvasBounds() {
-      if (state.elements.length === 0) {
-        return {
-          minX: 0,
-          minY: 0,
-          maxX: canvas.width,
-          maxY: canvas.height
-        };
-      }
-      
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      
-      state.elements.forEach(el => {
-        switch(el.type) {
-          case 'line':
-          case 'arrow':
-            minX = Math.min(minX, el.x1, el.x2);
-            minY = Math.min(minY, el.y1, el.y2);
-            maxX = Math.max(maxX, el.x1, el.x2);
-            maxY = Math.max(maxY, el.y1, el.y2);
-            break;
-          case 'rectangle':
-          case 'circle':
-          case 'diamond':
-          case 'triangle':
-          case 'hexagon':
-            minX = Math.min(minX, el.x1, el.x2);
-            minY = Math.min(minY, el.y1, el.y2);
-            maxX = Math.max(maxX, el.x1, el.x2);
-            maxY = Math.max(maxY, el.y1, el.y2);
-            break;
-          case 'text':
-            const textWidth = ctx.measureText(el.content).width;
-            minX = Math.min(minX, el.x);
-            minY = Math.min(minY, el.y - 16);
-            maxX = Math.max(maxX, el.x + textWidth);
-            maxY = Math.max(maxY, el.y + 5);
-            break;
-        }
-      });
-      
-      // Add some padding
-      const padding = 20;
-      minX = Math.max(0, minX - padding);
-      minY = Math.max(0, minY - padding);
-      maxX = Math.min(canvas.width, maxX + padding);
-      maxY = Math.min(canvas.height, maxY + padding);
-      
-      return { minX, minY, maxX, maxY };
-    }
-
-    // ... (остальные функции без изменений)
-
-    // ========== ЗАПУСК ==========
-    loadFromLocalStorage();
-    setActiveTool('select');
-  </script>
+  }
+</script>
 </body>
 </html>
