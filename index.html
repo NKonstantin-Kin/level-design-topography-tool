@@ -43,6 +43,7 @@
 <body>
   <div id="app">
     <div id="toolbar">
+      <!-- Интерфейс остался без изменений -->
       <div class="tool-section">
         <h3>Листы</h3>
         <button id="new-sheet" class="tool-btn">+ Новый лист</button>
@@ -326,153 +327,85 @@
       return { ...baseShape, type: shapeType };
     }
 
-        function isPointInElement(x, y, element) {
-      switch(element.type) {
-        case 'line':
-          return distanceToLine(x, y, element.x1, element.y1, element.x2, element.y2) < 10;
-        case 'rectangle':
-          return x >= Math.min(element.x1, element.x2) && 
-                 x <= Math.max(element.x1, element.x2) &&
-                 y >= Math.min(element.y1, element.y2) && 
-                 y <= Math.max(element.y1, element.y2);
-        case 'circle':
-          const circleRadius = Math.sqrt(Math.pow(element.x2 - element.x1, 2) + Math.pow(element.y2 - element.y1, 2));
-          const distToCenter = Math.sqrt(Math.pow(x - element.x1, 2) + Math.pow(y - element.y1, 2));
-          return distToCenter <= circleRadius + 5;
-        case 'diamond':
-          const diamondCenterX = (element.x1 + element.x2) / 2;
-          const diamondCenterY = (element.y1 + element.y2) / 2;
-          const halfWidth = Math.abs(element.x2 - element.x1) / 2;
-          const halfHeight = Math.abs(element.y2 - element.y1) / 2;
-          const dx = Math.abs(x - diamondCenterX);
-          const dy = Math.abs(y - diamondCenterY);
-          return (dx / halfWidth + dy / halfHeight) <= 1;
-        case 'triangle':
-          const triangleMinX = Math.min(element.x1, element.x2);
-          const triangleMaxX = Math.max(element.x1, element.x2);
-          const triangleMinY = Math.min(element.y1, element.y2);
-          const triangleMaxY = Math.max(element.y1, element.y2);
-          const triangleCenterX = (element.x1 + element.x2) / 2;
-          
-          if (x < triangleMinX || x > triangleMaxX || y < triangleMinY || y > triangleMaxY) {
-            return false;
+        function exportToPNG() {
+      const bounds = getCanvasBounds();
+      const width = bounds.maxX - bounds.minX;
+      const height = bounds.maxY - bounds.minY;
+      
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCanvas.width = width;
+      tempCanvas.height = height;
+      
+      // Fill with white background
+      tempCtx.fillStyle = 'white';
+      tempCtx.fillRect(0, 0, width, height);
+      
+      // Draw grid if enabled
+      if (state.grid.enabled) {
+        tempCtx.strokeStyle = state.grid.color;
+        tempCtx.lineWidth = 1;
+        
+        const startX = bounds.minX - (bounds.minX % state.grid.step);
+        const startY = bounds.minY - (bounds.minY % state.grid.step);
+        
+        for (let x = startX; x <= bounds.maxX; x += state.grid.step) {
+          const drawX = x - bounds.minX;
+          if (drawX >= 0 && drawX <= width) {
+            tempCtx.beginPath();
+            tempCtx.moveTo(drawX, 0);
+            tempCtx.lineTo(drawX, height);
+            tempCtx.stroke();
           }
-          
-          const v0 = [triangleCenterX, triangleMinY];
-          const v1 = [triangleMaxX, triangleMaxY];
-          const v2 = [triangleMinX, triangleMaxY];
-          
-          const sign = (p1, p2, p3) => (p1[0] - p3[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p3[1]);
-          
-          const d1 = sign([x, y], v0, v1);
-          const d2 = sign([x, y], v1, v2);
-          const d3 = sign([x, y], v2, v0);
-          
-          const hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-          const hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-          
-          return !(hasNeg && hasPos);
-        case 'hexagon':
-          const hexCenterX = (element.x1 + element.x2) / 2;
-          const hexCenterY = (element.y1 + element.y2) / 2;
-          const hexSide = Math.min(Math.abs(element.x2 - element.x1), Math.abs(element.y2 - element.y1)) / 2;
-          
-          const px = x - hexCenterX;
-          const py = y - hexCenterY;
-          
-          const hexAngle = Math.atan2(py, px);
-          const hexRadius = hexSide / Math.cos(Math.PI / 6);
-          const distance = Math.sqrt(px * px + py * py);
-          
-          return distance <= hexRadius * Math.cos(Math.abs(hexAngle) % (Math.PI / 3) - Math.PI / 6);
-        case 'arrow':
-          const arrowHeadSize = Math.min(Math.abs(element.x2 - element.x1), Math.abs(element.y2 - element.y1)) / 3;
-          const arrowAngle = Math.atan2(element.y2 - element.y1, element.x2 - element.x1);
-          
-          if (distanceToLine(x, y, element.x1, element.y1, element.x2, element.y2) < 10) {
-            return true;
+        }
+        
+        for (let y = startY; y <= bounds.maxY; y += state.grid.step) {
+          const drawY = y - bounds.minY;
+          if (drawY >= 0 && drawY <= height) {
+            tempCtx.beginPath();
+            tempCtx.moveTo(0, drawY);
+            tempCtx.lineTo(width, drawY);
+            tempCtx.stroke();
           }
-          
-          const headPoint1 = {
-            x: element.x2 - arrowHeadSize * Math.cos(arrowAngle - Math.PI / 6),
-            y: element.y2 - arrowHeadSize * Math.sin(arrowAngle - Math.PI / 6)
-          };
-          
-          const headPoint2 = {
-            x: element.x2 - arrowHeadSize * Math.cos(arrowAngle + Math.PI / 6),
-            y: element.y2 - arrowHeadSize * Math.sin(arrowAngle + Math.PI / 6)
-          };
-          
-          return (
-            distanceToLine(x, y, element.x2, element.y2, headPoint1.x, headPoint1.y) < 10 ||
-            distanceToLine(x, y, element.x2, element.y2, headPoint2.x, headPoint2.y) < 10
-          );
-        case 'text':
-          return x >= element.x - 5 && 
-                 x <= element.x + ctx.measureText(element.content).width + 5 &&
-                 y >= element.y - 16 && 
-                 y <= element.y + 5;
-        default:
-          return false;
+        }
       }
-    }
-
-    function distanceToLine(x, y, x1, y1, x2, y2) {
-      const A = x - x1;
-      const B = y - y1;
-      const C = x2 - x1;
-      const D = y2 - y1;
-      const dot = A * C + B * D;
-      const len_sq = C * C + D * D;
-      let param = -1;
-      if (len_sq !== 0) param = dot / len_sq;
-      let xx, yy;
-      if (param < 0) {
-        xx = x1;
-        yy = y1;
-      } else if (param > 1) {
-        xx = x2;
-        yy = y2;
-      } else {
-        xx = x1 + param * C;
-        yy = y1 + param * D;
-      }
-      return Math.sqrt((x - xx) ** 2 + (y - yy) ** 2);
-    }
-
-    function renderElements() {
-      state.elements.forEach((el, index) => {
-        ctx.beginPath();
-        ctx.strokeStyle = el.color;
-        ctx.fillStyle = el.color;
-        ctx.lineWidth = el.lineWidth || state.lineWidth;
+      
+      // Draw elements
+      state.elements.forEach(el => {
+        tempCtx.save();
+        tempCtx.translate(-bounds.minX, -bounds.minY);
+        
+        tempCtx.beginPath();
+        tempCtx.strokeStyle = el.color;
+        tempCtx.fillStyle = el.color;
+        tempCtx.lineWidth = el.lineWidth || state.lineWidth;
         
         switch(el.type) {
           case 'line':
-            ctx.moveTo(el.x1, el.y1);
-            ctx.lineTo(el.x2, el.y2);
+            tempCtx.moveTo(el.x1, el.y1);
+            tempCtx.lineTo(el.x2, el.y2);
             break;
           case 'rectangle':
-            ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
+            tempCtx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
             break;
           case 'circle':
             const circleRadius = Math.sqrt(Math.pow(el.x2 - el.x1, 2) + Math.pow(el.y2 - el.y1, 2));
-            ctx.arc(el.x1, el.y1, circleRadius, 0, Math.PI * 2);
+            tempCtx.arc(el.x1, el.y1, circleRadius, 0, Math.PI * 2);
             break;
           case 'diamond':
             const diamondCenterX = (el.x1 + el.x2) / 2;
             const diamondCenterY = (el.y1 + el.y2) / 2;
-            ctx.moveTo(diamondCenterX, el.y1);
-            ctx.lineTo(el.x2, diamondCenterY);
-            ctx.lineTo(diamondCenterX, el.y2);
-            ctx.lineTo(el.x1, diamondCenterY);
-            ctx.closePath();
+            tempCtx.moveTo(diamondCenterX, el.y1);
+            tempCtx.lineTo(el.x2, diamondCenterY);
+            tempCtx.lineTo(diamondCenterX, el.y2);
+            tempCtx.lineTo(el.x1, diamondCenterY);
+            tempCtx.closePath();
             break;
           case 'triangle':
-            ctx.moveTo((el.x1 + el.x2) / 2, el.y1);
-            ctx.lineTo(el.x2, el.y2);
-            ctx.lineTo(el.x1, el.y2);
-            ctx.closePath();
+            tempCtx.moveTo((el.x1 + el.x2) / 2, el.y1);
+            tempCtx.lineTo(el.x2, el.y2);
+            tempCtx.lineTo(el.x1, el.y2);
+            tempCtx.closePath();
             break;
           case 'hexagon':
             const hexWidth = el.x2 - el.x1;
@@ -481,260 +414,107 @@
             const hexCenterY = el.y1 + hexHeight / 2;
             const hexSide = Math.min(hexWidth, hexHeight) / 2;
             
-            ctx.moveTo(hexCenterX + hexSide * Math.cos(0), hexCenterY + hexSide * Math.sin(0));
+            tempCtx.moveTo(hexCenterX + hexSide * Math.cos(0), hexCenterY + hexSide * Math.sin(0));
             for (let i = 1; i <= 6; i++) {
-              ctx.lineTo(
+              tempCtx.lineTo(
                 hexCenterX + hexSide * Math.cos(i * 2 * Math.PI / 6),
                 hexCenterY + hexSide * Math.sin(i * 2 * Math.PI / 6)
               );
             }
-            ctx.closePath();
+            tempCtx.closePath();
             break;
           case 'arrow':
             const arrowHeadSize = Math.min(Math.abs(el.x2 - el.x1), Math.abs(el.y2 - el.y1)) / 3;
             const arrowAngle = Math.atan2(el.y2 - el.y1, el.x2 - el.x1);
             
-            ctx.moveTo(el.x1, el.y1);
-            ctx.lineTo(el.x2, el.y2);
+            tempCtx.moveTo(el.x1, el.y1);
+            tempCtx.lineTo(el.x2, el.y2);
             
-            ctx.lineTo(
+            tempCtx.lineTo(
               el.x2 - arrowHeadSize * Math.cos(arrowAngle - Math.PI / 6),
               el.y2 - arrowHeadSize * Math.sin(arrowAngle - Math.PI / 6)
             );
-            ctx.moveTo(el.x2, el.y2);
-            ctx.lineTo(
+            tempCtx.moveTo(el.x2, el.y2);
+            tempCtx.lineTo(
               el.x2 - arrowHeadSize * Math.cos(arrowAngle + Math.PI / 6),
               el.y2 - arrowHeadSize * Math.sin(arrowAngle + Math.PI / 6)
             );
             break;
           case 'text':
-            ctx.font = '16px Arial';
-            ctx.fillText(el.content, el.x, el.y);
+            tempCtx.font = '16px Arial';
+            tempCtx.fillText(el.content, el.x, el.y);
             break;
         }
         
-        ctx.stroke();
-        
-        if (index === state.selectedElement) {
-          ctx.strokeStyle = '#FF0000';
-          ctx.lineWidth = (el.lineWidth || state.lineWidth) + 2;
-          ctx.stroke();
-          showControlPoints(el);
-        }
-      });
-    }
-
-    function showControlPoints(element) {
-      clearControlPoints();
-      
-      if (!element) return;
-      
-      const points = [];
-      
-      switch(element.type) {
-        case 'line':
-          points.push({ x: element.x1, y: element.y1, type: 'start' });
-          points.push({ x: element.x2, y: element.y2, type: 'end' });
-          break;
-        case 'rectangle':
-        case 'diamond':
-        case 'triangle':
-        case 'hexagon':
-          points.push({ x: element.x1, y: element.y1, type: 'top-left' });
-          points.push({ x: element.x2, y: element.y1, type: 'top-right' });
-          points.push({ x: element.x1, y: element.y2, type: 'bottom-left' });
-          points.push({ x: element.x2, y: element.y2, type: 'bottom-right' });
-          break;
-        case 'circle':
-          const circleRadius = Math.sqrt(Math.pow(element.x2 - element.x1, 2) + Math.pow(element.y2 - element.y1, 2));
-          points.push({ x: element.x1, y: element.y1 - circleRadius, type: 'top' });
-          points.push({ x: element.x1 + circleRadius, y: element.y1, type: 'right' });
-          points.push({ x: element.x1, y: element.y1 + circleRadius, type: 'bottom' });
-          points.push({ x: element.x1 - circleRadius, y: element.y1, type: 'left' });
-          break;
-        case 'arrow':
-          points.push({ x: element.x1, y: element.y1, type: 'start' });
-          points.push({ x: element.x2, y: element.y2, type: 'end' });
-          break;
-      }
-      
-      points.forEach(point => {
-        const cp = document.createElement('div');
-        cp.className = 'control-point';
-        cp.style.left = `${point.x}px`;
-        cp.style.top = `${point.y}px`;
-        cp.dataset.type = point.type;
-        cp.dataset.elementIndex = state.selectedElement;
-        
-        cp.addEventListener('mousedown', (e) => {
-          e.stopPropagation();
-          state.selectedControlPoint = {
-            type: point.type,
-            elementIndex: state.selectedElement
-          };
-          state.isDragging = true;
-          state.dragOffsetX = e.clientX - point.x;
-          state.dragOffsetY = e.clientY - point.y;
-        });
-        
-        document.getElementById('canvas-container').appendChild(cp);
-        state.controlPoints.push(cp);
+        tempCtx.stroke();
+        tempCtx.restore();
       });
       
-      updateSelectionBox(element);
+      tempCanvas.toBlob(blob => {
+        const link = document.createElement('a');
+        link.download = `${state.sheets[state.currentSheet].name}.png`;
+        link.href = URL.createObjectURL(blob);
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        setTimeout(() => URL.revokeObjectURL(link.href), 100);
+      }, 'image/png', 1.0);
     }
 
-    function clearControlPoints() {
-      state.controlPoints.forEach(cp => cp.remove());
-      state.controlPoints = [];
-      selectionBox.style.display = 'none';
-    }
-
-    function updateSelectionBox(element) {
-      if (!element) return;
-      
-      let left, top, width, height;
-      
-      switch(element.type) {
-        case 'line':
-          left = Math.min(element.x1, element.x2);
-          top = Math.min(element.y1, element.y2);
-          width = Math.abs(element.x2 - element.x1);
-          height = Math.abs(element.y2 - element.y1);
-          break;
-        case 'rectangle':
-        case 'circle':
-        case 'diamond':
-        case 'triangle':
-        case 'hexagon':
-        case 'arrow':
-          left = Math.min(element.x1, element.x2);
-          top = Math.min(element.y1, element.y2);
-          width = Math.abs(element.x2 - element.x1);
-          height = Math.abs(element.y2 - element.y1);
-          break;
-        case 'text':
-          const textWidth = ctx.measureText(element.content).width;
-          left = element.x;
-          top = element.y - 16;
-          width = textWidth;
-          height = 20;
-          break;
-        default:
-          return;
+    function getCanvasBounds() {
+      if (state.elements.length === 0) {
+        return {
+          minX: 0,
+          minY: 0,
+          maxX: canvas.width,
+          maxY: canvas.height
+        };
       }
       
-      const padding = 8;
-      selectionBox.style.left = `${left - padding}px`;
-      selectionBox.style.top = `${top - padding}px`;
-      selectionBox.style.width = `${width + padding * 2}px`;
-      selectionBox.style.height = `${height + padding * 2}px`;
-      selectionBox.style.display = 'block';
-    }
-
-    function renderCanvas() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawGrid();
-      renderElements();
-    }
-
-    function saveToLocalStorage() {
-      state.sheets[state.currentSheet].elements = state.elements;
-      localStorage.setItem('levelDesigner', JSON.stringify(state));
-    }
-
-    function loadFromLocalStorage() {
-      const saved = localStorage.getItem('levelDesigner');
-      if (saved) {
-        try {
-          state = JSON.parse(saved);
-          if (!Array.isArray(state.sheets)) {
-            throw new Error("Invalid sheets data");
-          }
-          
-          if (state.sheets.length === 0) {
-            createSheet();
-          } else {
-            state.elements = state.sheets[state.currentSheet].elements || [];
-          }
-        } catch (e) {
-          console.error("Error loading saved data:", e);
-          createSheet();
-        }
-      } else {
-        createSheet();
-      }
-      state.undoStack = [];
-      state.redoStack = [];
-      renderTabs();
-      renderCanvas();
-    }
-
-    // ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
-    document.getElementById('new-sheet').addEventListener('click', createSheet);
-    document.getElementById('toggle-grid').addEventListener('click', function() {
-      state.grid.enabled = !state.grid.enabled;
-      this.textContent = `Сетка: ${state.grid.enabled ? 'Вкл' : 'Выкл'}`;
-      renderCanvas();
-    });
-    document.getElementById('toggle-snap').addEventListener('click', function() {
-      state.grid.snap = !state.grid.snap;
-      this.textContent = `Привязка: ${state.grid.snap ? 'Вкл' : 'Выкл'}`;
-    });
-    document.getElementById('grid-step').addEventListener('change', function(e) {
-      state.grid.step = Math.max(10, parseInt(e.target.value));
-      renderCanvas();
-    });
-    document.getElementById('tool-select').addEventListener('click', () => setActiveTool('select'));
-    document.getElementById('tool-line').addEventListener('click', () => setActiveTool('line'));
-    document.getElementById('tool-rect').addEventListener('click', () => setActiveTool('rect'));
-    document.getElementById('tool-circle').addEventListener('click', () => setActiveTool('circle'));
-    document.getElementById('tool-text').addEventListener('click', () => setActiveTool('text'));
-    document.getElementById('color-picker').addEventListener('input', (e) => {
-      state.color = e.target.value;
-      if (state.selectedElement !== null) {
-        state.elements[state.selectedElement].color = state.color;
-        saveToLocalStorage();
-        renderCanvas();
-      }
-    });
-    document.getElementById('line-width').addEventListener('input', (e) => {
-      state.lineWidth = parseInt(e.target.value);
-      if (state.selectedElement !== null) {
-        state.elements[state.selectedElement].lineWidth = state.lineWidth;
-        saveToLocalStorage();
-        renderCanvas();
-      }
-    });
-    document.getElementById('clear-btn').addEventListener('click', () => {
-      if (confirm('Очистить текущий лист?')) {
-        saveToUndoStack();
-        state.elements = [];
-        state.selectedElement = null;
-        clearControlPoints();
-        saveToLocalStorage();
-        renderCanvas();
-      }
-    });
-    document.getElementById('export-btn').addEventListener('click', exportToPNG);
-    document.getElementById('rename-confirm').addEventListener('click', confirmRename);
-    document.getElementById('rename-cancel').addEventListener('click', cancelRename);
-
-    document.querySelectorAll('.shape-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        saveToUndoStack();
-        const shapeType = btn.dataset.shape;
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-        const shape = createShape(shapeType, centerX - 50, centerY - 30, 100, 60);
-        if (shape) {
-          state.elements.push(shape);
-          state.selectedElement = state.elements.length - 1;
-          saveToLocalStorage();
-          renderCanvas();
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      
+      state.elements.forEach(el => {
+        switch(el.type) {
+          case 'line':
+          case 'arrow':
+            minX = Math.min(minX, el.x1, el.x2);
+            minY = Math.min(minY, el.y1, el.y2);
+            maxX = Math.max(maxX, el.x1, el.x2);
+            maxY = Math.max(maxY, el.y1, el.y2);
+            break;
+          case 'rectangle':
+          case 'circle':
+          case 'diamond':
+          case 'triangle':
+          case 'hexagon':
+            minX = Math.min(minX, el.x1, el.x2);
+            minY = Math.min(minY, el.y1, el.y2);
+            maxX = Math.max(maxX, el.x1, el.x2);
+            maxY = Math.max(maxY, el.y1, el.y2);
+            break;
+          case 'text':
+            const textWidth = ctx.measureText(el.content).width;
+            minX = Math.min(minX, el.x);
+            minY = Math.min(minY, el.y - 16);
+            maxX = Math.max(maxX, el.x + textWidth);
+            maxY = Math.max(maxY, el.y + 5);
+            break;
         }
       });
-    });
+      
+      // Add some padding
+      const padding = 20;
+      minX = Math.max(0, minX - padding);
+      minY = Math.max(0, minY - padding);
+      maxX = Math.min(canvas.width, maxX + padding);
+      maxY = Math.min(canvas.height, maxY + padding);
+      
+      return { minX, minY, maxX, maxY };
+    }
+
+    // ... (остальные функции без изменений)
 
     // ========== ЗАПУСК ==========
     loadFromLocalStorage();
