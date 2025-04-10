@@ -331,7 +331,7 @@
       if (state.selectedElement === null) return;
 
       const element = state.elements[state.selectedElement];
-      if (!element) return;
+      if (!element || element.type !== 'rect') return;
 
       const canvasRect = canvas.getBoundingClientRect();
       const containerRect = document.getElementById('canvas-container').getBoundingClientRect();
@@ -341,27 +341,25 @@
       const offsetX = canvasRect.left - containerRect.left + scrollLeft;
       const offsetY = canvasRect.top - containerRect.top + scrollTop;
 
-      if (element.type === 'rect') {
-        const handles = [
-          { x: element.x1, y: element.y1, type: 'nw' },
-          { x: (element.x1 + element.x2)/2, y: element.y1, type: 'n' },
-          { x: element.x2, y: element.y1, type: 'ne' },
-          { x: element.x1, y: (element.y1 + element.y2)/2, type: 'w' },
-          { x: element.x2, y: (element.y1 + element.y2)/2, type: 'e' },
-          { x: element.x1, y: element.y2, type: 'sw' },
-          { x: (element.x1 + element.x2)/2, y: element.y2, type: 's' },
-          { x: element.x2, y: element.y2, type: 'se' }
-        ];
+      const handles = [
+        { x: element.x1, y: element.y1, type: 'nw' },
+        { x: (element.x1 + element.x2)/2, y: element.y1, type: 'n' },
+        { x: element.x2, y: element.y1, type: 'ne' },
+        { x: element.x1, y: (element.y1 + element.y2)/2, type: 'w' },
+        { x: element.x2, y: (element.y1 + element.y2)/2, type: 'e' },
+        { x: element.x1, y: element.y2, type: 'sw' },
+        { x: (element.x1 + element.x2)/2, y: element.y2, type: 's' },
+        { x: element.x2, y: element.y2, type: 'se' }
+      ];
 
-        handles.forEach(handle => {
-          const handleEl = document.createElement('div');
-          handleEl.className = 'transform-handle';
-          handleEl.style.left = `${handle.x + offsetX}px`;
-          handleEl.style.top = `${handle.y + offsetY}px`;
-          handleEl.dataset.type = handle.type;
-          transformHandles.appendChild(handleEl);
-        });
-      }
+      handles.forEach(handle => {
+        const handleEl = document.createElement('div');
+        handleEl.className = 'transform-handle';
+        handleEl.style.left = `${handle.x + offsetX}px`;
+        handleEl.style.top = `${handle.y + offsetY}px`;
+        handleEl.dataset.type = handle.type;
+        transformHandles.appendChild(handleEl);
+      });
     }
 
     function renderElements() {
@@ -669,37 +667,8 @@
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       
-      if (state.isDragging && state.selectedElement !== null) {
+      if (state.transformHandle !== null && state.selectedElement !== null) {
         const element = state.elements[state.selectedElement];
-        const dx = x - state.dragStartX;
-        const dy = y - state.dragStartY;
-        
-        if (element.type === 'line') {
-          element.x1 += dx;
-          element.y1 += dy;
-          element.x2 += dx;
-          element.y2 += dy;
-        } else if (element.type === 'rect') {
-          element.x1 += dx;
-          element.y1 += dy;
-          element.x2 += dx;
-          element.y2 += dy;
-        } else if (element.type === 'circle') {
-          element.x1 += dx;
-          element.y1 += dy;
-          element.x2 += dx;
-          element.y2 += dy;
-        } else if (element.type === 'text') {
-          element.x += dx;
-          element.y += dy;
-        }
-        
-        state.dragStartX = x;
-        state.dragStartY = y;
-        renderCanvas();
-      } else if (state.transformHandle !== null && state.selectedElement !== null) {
-        const element = state.elements[state.selectedElement];
-        const original = state.originalElement;
         
         switch (state.transformHandle) {
           case 'nw':
@@ -731,6 +700,34 @@
             element.y2 = y;
             break;
         }
+        renderCanvas();
+      } else if (state.isDragging && state.selectedElement !== null) {
+        const element = state.elements[state.selectedElement];
+        const dx = x - state.dragStartX;
+        const dy = y - state.dragStartY;
+        
+        if (element.type === 'line') {
+          element.x1 += dx;
+          element.y1 += dy;
+          element.x2 += dx;
+          element.y2 += dy;
+        } else if (element.type === 'rect') {
+          element.x1 += dx;
+          element.y1 += dy;
+          element.x2 += dx;
+          element.y2 += dy;
+        } else if (element.type === 'circle') {
+          element.x1 += dx;
+          element.y1 += dy;
+          element.x2 += dx;
+          element.y2 += dy;
+        } else if (element.type === 'text') {
+          element.x += dx;
+          element.y += dy;
+        }
+        
+        state.dragStartX = x;
+        state.dragStartY = y;
         renderCanvas();
       } else if (state.isDrawing) {
         const currentElement = state.elements[state.elements.length - 1];
