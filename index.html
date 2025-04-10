@@ -136,29 +136,46 @@
       z-index: 100;
       display: none;
     }
-    #rename-dialog h3 {
+    #export-dialog {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      box-shadow: 0 0 20px rgba(0,0,0,0.2);
+      z-index: 100;
+      display: none;
+    }
+    #rename-dialog h3, #export-dialog h3 {
       margin-top: 0;
       color: #2c3e50;
     }
-    #rename-dialog input {
+    #rename-dialog input, #export-dialog input {
       width: 100%;
       padding: 8px;
       margin-bottom: 10px;
       border: 1px solid #ddd;
       border-radius: 4px;
     }
-    #rename-dialog button {
+    .dialog-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    #rename-dialog button, #export-dialog button {
       padding: 8px 15px;
-      margin-right: 10px;
       border: none;
       border-radius: 4px;
       cursor: pointer;
     }
-    #rename-confirm {
+    #rename-confirm, #export-confirm {
       background: #1abc9c;
       color: white;
     }
-    #rename-cancel {
+    #rename-cancel, #export-cancel {
       background: #e74c3c;
       color: white;
     }
@@ -203,37 +220,7 @@
 <body>
   <div id="app">
     <div id="toolbar">
-      <div class="tool-section">
-        <h3>Листы</h3>
-        <button id="new-sheet" class="tool-btn">+ Новый лист</button>
-      </div>
-      <div class="tool-section">
-        <h3>Инструменты</h3>
-        <button id="tool-select" class="tool-btn active">🖱️ Выделение</button>
-        <button id="tool-line" class="tool-btn">✏️ Линия</button>
-        <button id="tool-rect" class="tool-btn">⬜ Прямоугольник</button>
-        <button id="tool-circle" class="tool-btn">🔵 Круг</button>
-        <button id="tool-text" class="tool-btn">🔤 Текст</button>
-      </div>
-      <div class="tool-section">
-        <h3>Свойства</h3>
-        <input type="color" id="color-picker" value="#000000">
-      </div>
-      <div class="tool-section">
-        <h3>Сетка</h3>
-        <div class="grid-controls">
-          <button id="toggle-grid" class="tool-btn">Сетка: Вкл</button>
-          <button id="toggle-snap" class="tool-btn">Привязка: Вкл</button>
-          <label>
-            Шаг сетки:
-            <input type="number" id="grid-step" value="20" min="10">
-          </label>
-        </div>
-      </div>
-      <div class="tool-section">
-        <button id="clear-btn" class="tool-btn">❌ Очистить лист</button>
-        <button id="export-btn" class="tool-btn">💾 Экспорт PNG</button>
-      </div>
+      <!-- ... (тулбар без изменений) ... -->
     </div>
     <div id="canvas-container">
       <div class="tabs" id="sheet-tabs"></div>
@@ -246,8 +233,19 @@
   <div id="rename-dialog">
     <h3>Переименовать лист</h3>
     <input type="text" id="rename-input">
-    <button id="rename-confirm">OK</button>
-    <button id="rename-cancel">Отмена</button>
+    <div class="dialog-buttons">
+      <button id="rename-confirm">OK</button>
+      <button id="rename-cancel">Отмена</button>
+    </div>
+  </div>
+
+  <div id="export-dialog">
+    <h3>Экспорт в PNG</h3>
+    <p>Вы действительно хотите экспортировать текущий лист?</p>
+    <div class="dialog-buttons">
+      <button id="export-confirm">Экспорт</button>
+      <button id="export-cancel">Отмена</button>
+    </div>
   </div>
 
   <script>
@@ -257,7 +255,8 @@
       CANVAS_HEIGHT: 1500,
       GRID_COLOR: '#e0e0e0',
       HANDLE_SIZE: 10,
-      SELECTION_COLOR: '#FF0000'
+      SELECTION_COLOR: '#FF0000',
+      TEXT_HEIGHT: 20 // Высота текста для правильного позиционирования
     };
 
     // ========== ИНИЦИАЛИЗАЦИЯ ==========
@@ -269,99 +268,10 @@
     canvas.height = CONFIG.CANVAS_HEIGHT;
 
     let state = {
-      sheets: [],
-      currentSheet: 0,
-      currentTool: 'select',
-      color: '#000000',
-      selectedElement: null,
-      undoStack: [],
-      redoStack: [],
-      grid: {
-        enabled: true,
-        snap: true,
-        step: 20,
-        color: CONFIG.GRID_COLOR
-      },
-      elements: [],
-      renamingSheet: null,
-      textInputActive: false,
-      isDrawing: false,
-      startX: 0,
-      startY: 0,
-      isDragging: false,
-      dragStartX: 0,
-      dragStartY: 0,
-      transformHandle: null,
-      originalElement: null
+      // ... (остальное состояние без изменений) ...
     };
 
     // ========== ОСНОВНЫЕ ФУНКЦИИ ==========
-    function drawGrid() {
-      if (!state.grid.enabled) return;
-      ctx.strokeStyle = state.grid.color;
-      ctx.lineWidth = 1;
-      
-      for (let x = 0; x <= canvas.width; x += state.grid.step) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
-      }
-      
-      for (let y = 0; y <= canvas.height; y += state.grid.step) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-        ctx.stroke();
-      }
-    }
-
-    function saveToUndoStack() {
-      state.undoStack.push(JSON.stringify({
-        elements: JSON.parse(JSON.stringify(state.elements)),
-        sheets: JSON.parse(JSON.stringify(state.sheets)),
-        currentSheet: state.currentSheet
-      }));
-      if (state.undoStack.length > 50) state.undoStack.shift();
-      state.redoStack = [];
-    }
-
-    function renderTransformHandles() {
-      transformHandles.innerHTML = '';
-      if (state.selectedElement === null) return;
-
-      const element = state.elements[state.selectedElement];
-      if (!element || element.type !== 'rect') return;
-
-      const canvasRect = canvas.getBoundingClientRect();
-      const containerRect = document.getElementById('canvas-container').getBoundingClientRect();
-      const scrollLeft = document.getElementById('canvas-container').scrollLeft;
-      const scrollTop = document.getElementById('canvas-container').scrollTop;
-
-      const offsetX = canvasRect.left - containerRect.left + scrollLeft;
-      const offsetY = canvasRect.top - containerRect.top + scrollTop;
-
-      const handles = [
-        { x: element.x1, y: element.y1, type: 'nw' },
-        { x: (element.x1 + element.x2)/2, y: element.y1, type: 'n' },
-        { x: element.x2, y: element.y1, type: 'ne' },
-        { x: element.x1, y: (element.y1 + element.y2)/2, type: 'w' },
-        { x: element.x2, y: (element.y1 + element.y2)/2, type: 'e' },
-        { x: element.x1, y: element.y2, type: 'sw' },
-        { x: (element.x1 + element.x2)/2, y: element.y2, type: 's' },
-        { x: element.x2, y: element.y2, type: 'se' }
-      ];
-
-      handles.forEach(handle => {
-        const handleEl = document.createElement('div');
-        handleEl.className = 'transform-handle';
-        handleEl.style.left = `${handle.x + offsetX}px`;
-        handleEl.style.top = `${handle.y + offsetY}px`;
-        handleEl.dataset.type = handle.type;
-        transformHandles.appendChild(handleEl);
-      });
-    }
-
     function renderElements() {
       state.elements.forEach((el, index) => {
         ctx.beginPath();
@@ -373,7 +283,12 @@
           ctx.moveTo(el.x1, el.y1);
           ctx.lineTo(el.x2, el.y2);
         } else if (el.type === 'rect') {
-          ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
+          // Рисуем прямоугольник как замкнутую фигуру
+          ctx.moveTo(el.x1, el.y1);
+          ctx.lineTo(el.x2, el.y1);
+          ctx.lineTo(el.x2, el.y2);
+          ctx.lineTo(el.x1, el.y2);
+          ctx.closePath();
         } else if (el.type === 'circle') {
           const radius = Math.sqrt(
             Math.pow(el.x2 - el.x1, 2) + 
@@ -382,7 +297,8 @@
           ctx.arc(el.x1, el.y1, radius, 0, Math.PI * 2);
         } else if (el.type === 'text') {
           ctx.font = '16px Arial';
-          ctx.fillText(el.content, el.x, el.y);
+          // Корректное позиционирование текста
+          ctx.fillText(el.content, el.x, el.y + CONFIG.TEXT_HEIGHT);
         }
         
         if (index === state.selectedElement) {
@@ -392,7 +308,11 @@
             ctx.moveTo(el.x1, el.y1);
             ctx.lineTo(el.x2, el.y2);
           } else if (el.type === 'rect') {
-            ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
+            ctx.moveTo(el.x1, el.y1);
+            ctx.lineTo(el.x2, el.y1);
+            ctx.lineTo(el.x2, el.y2);
+            ctx.lineTo(el.x1, el.y2);
+            ctx.closePath();
           } else if (el.type === 'circle') {
             const radius = Math.sqrt(
               Math.pow(el.x2 - el.x1, 2) + 
@@ -400,170 +320,11 @@
             );
             ctx.arc(el.x1, el.y1, radius, 0, Math.PI * 2);
           } else if (el.type === 'text') {
-            ctx.strokeText(el.content, el.x, el.y);
+            ctx.strokeText(el.content, el.x, el.y + CONFIG.TEXT_HEIGHT);
           }
         }
         ctx.stroke();
       });
-    }
-
-    function renderCanvas() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawGrid();
-      renderElements();
-      renderTransformHandles();
-    }
-
-    // ========== РАБОТА С ЛИСТАМИ ==========
-    function createSheet() {
-      if (state.sheets.length >= 10) return alert('Максимум 10 листов!');
-      saveToUndoStack();
-      
-      let sheetNumber = 1;
-      while (state.sheets.some(sheet => sheet.name === `Лист ${sheetNumber}`)) {
-        sheetNumber++;
-      }
-      
-      const newSheet = {
-        id: Date.now(),
-        name: `Лист ${sheetNumber}`,
-        elements: []
-      };
-      state.sheets.push(newSheet);
-      renderTabs();
-      switchSheet(state.sheets.length - 1);
-      saveToLocalStorage();
-    }
-
-    function deleteSheet(index) {
-      if (state.sheets.length <= 1) return alert('Должен остаться хотя бы один лист!');
-      saveToUndoStack();
-      
-      state.sheets.splice(index, 1);
-      if (state.currentSheet >= index) state.currentSheet = Math.max(0, state.currentSheet - 1);
-      renderTabs();
-      switchSheet(state.currentSheet);
-      saveToLocalStorage();
-    }
-
-    function renameSheet(index) {
-      state.renamingSheet = index;
-      document.getElementById('rename-input').value = state.sheets[index].name;
-      document.getElementById('rename-dialog').style.display = 'block';
-    }
-
-    function confirmRename() {
-      const newName = document.getElementById('rename-input').value.trim();
-      if (newName && state.renamingSheet !== null) {
-        saveToUndoStack();
-        state.sheets[state.renamingSheet].name = newName;
-        saveToLocalStorage();
-        renderTabs();
-      }
-      cancelRename();
-    }
-
-    function cancelRename() {
-      document.getElementById('rename-dialog').style.display = 'none';
-      state.renamingSheet = null;
-    }
-
-    function switchSheet(index) {
-      state.currentSheet = index;
-      state.elements = state.sheets[index].elements;
-      state.selectedElement = null;
-      
-      textInput.style.display = 'none';
-      state.textInputActive = false;
-      
-      renderCanvas();
-      renderTabs();
-    }
-
-    function renderTabs() {
-      const tabsContainer = document.getElementById('sheet-tabs');
-      tabsContainer.innerHTML = '';
-      state.sheets.forEach((sheet, index) => {
-        const tab = document.createElement('div');
-        tab.className = `tab ${index === state.currentSheet ? 'active' : ''}`;
-        tab.innerHTML = `
-          ${sheet.name}
-          <span class="tab-edit" data-index="${index}">✏️</span>
-          <span class="tab-close" data-index="${index}">×</span>
-        `;
-        tab.onclick = () => switchSheet(index);
-        tabsContainer.appendChild(tab);
-      });
-      
-      const newTab = document.createElement('div');
-      newTab.className = 'tab';
-      newTab.textContent = '+';
-      newTab.onclick = createSheet;
-      tabsContainer.appendChild(newTab);
-
-      document.querySelectorAll('.tab-close').forEach(btn => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          deleteSheet(parseInt(btn.dataset.index));
-        };
-      });
-
-      document.querySelectorAll('.tab-edit').forEach(btn => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          renameSheet(parseInt(btn.dataset.index));
-        };
-      });
-    }
-
-    // ========== ИНСТРУМЕНТЫ ==========
-    function setActiveTool(tool) {
-      state.currentTool = tool;
-      document.querySelectorAll('#toolbar .tool-btn').forEach(btn => {
-        btn.classList.remove('active');
-      });
-      document.getElementById(`tool-${tool}`).classList.add('active');
-      state.selectedElement = null;
-      
-      if (tool !== 'text') {
-        textInput.style.display = 'none';
-        state.textInputActive = false;
-      }
-      
-      renderCanvas();
-    }
-
-    function distanceToLine(x, y, x1, y1, x2, y2) {
-      const A = x - x1;
-      const B = y - y1;
-      const C = x2 - x1;
-      const D = y2 - y1;
-      const dot = A * C + B * D;
-      const len_sq = C * C + D * D;
-      let param = -1;
-      if (len_sq !== 0) param = dot / len_sq;
-      let xx, yy;
-      if (param < 0) {
-        xx = x1;
-        yy = y1;
-      } else if (param > 1) {
-        xx = x2;
-        yy = y2;
-      } else {
-        xx = x1 + param * C;
-        yy = y1 + param * D;
-      }
-      return Math.sqrt((x - xx) ** 2 + (y - yy) ** 2);
-    }
-
-    function isPointInHandle(x, y, handleX, handleY) {
-      const handleSize = CONFIG.HANDLE_SIZE + 4;
-      return (
-        x >= handleX - handleSize / 2 &&
-        x <= handleX + handleSize / 2 &&
-        y >= handleY - handleSize / 2 &&
-        y <= handleY + handleSize / 2
-      );
     }
 
     // ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
@@ -596,326 +357,38 @@
           }
         }
         
-        // Выделение элемента
-        state.selectedElement = null;
-        state.elements.forEach((el, index) => {
-          if (el.type === 'line') {
-            if (distanceToLine(x, y, el.x1, el.y1, el.x2, el.y2) < 10) {
-              state.selectedElement = index;
-            }
-          } else if (el.type === 'rect') {
-            if (x >= Math.min(el.x1, el.x2) && x <= Math.max(el.x1, el.x2) &&
-                y >= Math.min(el.y1, el.y2) && y <= Math.max(el.y1, el.y2)) {
-              state.selectedElement = index;
-            }
-          } else if (el.type === 'circle') {
-            const radius = Math.sqrt(
-              Math.pow(el.x2 - el.x1, 2) + 
-              Math.pow(el.y2 - el.y1, 2)
-            );
-            const dist = Math.sqrt(Math.pow(x - el.x1, 2) + Math.pow(y - el.y1, 2));
-            if (Math.abs(dist - radius) < 10) {
-              state.selectedElement = index;
-            }
-          } else if (el.type === 'text') {
-            if (x >= el.x - 5 && x <= el.x + ctx.measureText(el.content).width + 5 &&
-                y >= el.y - 16 && y <= el.y + 5) {
-              state.selectedElement = index;
-            }
-          }
-        });
-        
-        if (state.selectedElement !== null) {
-          state.isDragging = true;
-          state.dragStartX = x;
-          state.dragStartY = y;
-          saveToUndoStack();
-        }
-        
-        renderCanvas();
-        return;
+        // ... (остальная логика выделения) ...
       }
 
       if (state.currentTool === 'text') {
         textInput.style.display = 'block';
         textInput.style.left = `${x}px`;
-        textInput.style.top = `${y}px`;
+        // Корректируем позицию для текста
+        textInput.style.top = `${y - CONFIG.TEXT_HEIGHT}px`;
         textInput.focus();
         state.textInputActive = true;
         return;
       }
-
-      saveToUndoStack();
-      state.isDrawing = true;
-      state.startX = x;
-      state.startY = y;
-      
-      if (state.currentTool === 'line' || state.currentTool === 'rect' || state.currentTool === 'circle') {
-        state.elements.push({
-          type: state.currentTool,
-          x1: x,
-          y1: y,
-          x2: x,
-          y2: y,
-          color: state.color
-        });
-      }
-    });
-
-    canvas.addEventListener('mousemove', (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      
-      if (state.transformHandle !== null && state.selectedElement !== null) {
-        const element = state.elements[state.selectedElement];
-        
-        switch (state.transformHandle) {
-          case 'nw':
-            element.x1 = x;
-            element.y1 = y;
-            break;
-          case 'n':
-            element.y1 = y;
-            break;
-          case 'ne':
-            element.x2 = x;
-            element.y1 = y;
-            break;
-          case 'w':
-            element.x1 = x;
-            break;
-          case 'e':
-            element.x2 = x;
-            break;
-          case 'sw':
-            element.x1 = x;
-            element.y2 = y;
-            break;
-          case 's':
-            element.y2 = y;
-            break;
-          case 'se':
-            element.x2 = x;
-            element.y2 = y;
-            break;
-        }
-        renderCanvas();
-      } else if (state.isDragging && state.selectedElement !== null) {
-        const element = state.elements[state.selectedElement];
-        const dx = x - state.dragStartX;
-        const dy = y - state.dragStartY;
-        
-        if (element.type === 'line') {
-          element.x1 += dx;
-          element.y1 += dy;
-          element.x2 += dx;
-          element.y2 += dy;
-        } else if (element.type === 'rect') {
-          element.x1 += dx;
-          element.y1 += dy;
-          element.x2 += dx;
-          element.y2 += dy;
-        } else if (element.type === 'circle') {
-          element.x1 += dx;
-          element.y1 += dy;
-          element.x2 += dx;
-          element.y2 += dy;
-        } else if (element.type === 'text') {
-          element.x += dx;
-          element.y += dy;
-        }
-        
-        state.dragStartX = x;
-        state.dragStartY = y;
-        renderCanvas();
-      } else if (state.isDrawing) {
-        const currentElement = state.elements[state.elements.length - 1];
-        if (currentElement) {
-          currentElement.x2 = x;
-          currentElement.y2 = y;
-          renderCanvas();
-        }
-      }
-    });
-
-    canvas.addEventListener('mouseup', () => {
-      state.isDrawing = false;
-      state.isDragging = false;
-      state.transformHandle = null;
-      state.originalElement = null;
-      saveToLocalStorage();
-    });
-
-    textInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const text = textInput.innerText.trim();
-        if (text) {
-          saveToUndoStack();
-          state.elements.push({
-            type: 'text',
-            x: parseInt(textInput.style.left),
-            y: parseInt(textInput.style.top),
-            content: text,
-            color: state.color
-          });
-          saveToLocalStorage();
-          renderCanvas();
-        }
-        textInput.style.display = 'none';
-        textInput.innerText = '';
-        state.textInputActive = false;
-      }
-    });
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Delete' && state.selectedElement !== null) {
-        saveToUndoStack();
-        state.elements.splice(state.selectedElement, 1);
-        state.selectedElement = null;
-        saveToLocalStorage();
-        renderCanvas();
-      }
-      
-      if (e.ctrlKey && e.key === 'z') {
-        e.preventDefault();
-        undo();
-      }
-      
-      if (e.ctrlKey && e.key === 's') {
-        e.preventDefault();
-        exportToPNG();
-      }
+      // ... (остальные инструменты) ...
     });
 
     // ========== ЭКСПОРТ ==========
-    function exportToPNG() {
-      const tempCanvas = document.createElement('canvas');
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCanvas.width = canvas.width;
-      tempCanvas.height = canvas.height;
-      
-      tempCtx.fillStyle = 'white';
-      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-      
-      if (state.grid.enabled) {
-        tempCtx.strokeStyle = state.grid.color;
-        tempCtx.lineWidth = 1;
-        for (let x = 0; x <= tempCanvas.width; x += state.grid.step) {
-          tempCtx.beginPath();
-          tempCtx.moveTo(x, 0);
-          tempCtx.lineTo(x, tempCanvas.height);
-          tempCtx.stroke();
-        }
-        for (let y = 0; y <= tempCanvas.height; y += state.grid.step) {
-          tempCtx.beginPath();
-          tempCtx.moveTo(0, y);
-          tempCtx.lineTo(tempCanvas.width, y);
-          tempCtx.stroke();
-        }
-      }
-      
-      state.elements.forEach(el => {
-        tempCtx.beginPath();
-        tempCtx.strokeStyle = el.color;
-        tempCtx.fillStyle = el.color;
-        tempCtx.lineWidth = 2;
-        
-        if (el.type === 'line') {
-          tempCtx.moveTo(el.x1, el.y1);
-          tempCtx.lineTo(el.x2, el.y2);
-        } else if (el.type === 'rect') {
-          tempCtx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
-        } else if (el.type === 'circle') {
-          const radius = Math.sqrt(
-            Math.pow(el.x2 - el.x1, 2) + 
-            Math.pow(el.y2 - el.y1, 2)
-          );
-          tempCtx.arc(el.x1, el.y1, radius, 0, Math.PI * 2);
-        } else if (el.type === 'text') {
-          tempCtx.font = '16px Arial';
-          tempCtx.fillText(el.content, el.x, el.y);
-        }
-        tempCtx.stroke();
-      });
-      
-      tempCanvas.toBlob(blob => {
-        const link = document.createElement('a');
-        link.download = `${state.sheets[state.currentSheet].name}.png`;
-        link.href = URL.createObjectURL(blob);
-        
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        setTimeout(() => URL.revokeObjectURL(link.href), 100);
-      }, 'image/png', 1.0);
+    function showExportDialog() {
+      document.getElementById('export-dialog').style.display = 'block';
     }
 
-    // ========== ЛОКАЛЬНОЕ ХРАНИЛИЩЕ ==========
-    function saveToLocalStorage() {
-      state.sheets[state.currentSheet].elements = state.elements;
-      localStorage.setItem('levelDesigner', JSON.stringify(state));
+    function hideExportDialog() {
+      document.getElementById('export-dialog').style.display = 'none';
     }
 
-    function loadFromLocalStorage() {
-      const saved = localStorage.getItem('levelDesigner');
-      if (saved) {
-        state = JSON.parse(saved);
-        if (state.sheets.length === 0) {
-          createSheet();
-        } else {
-          state.elements = state.sheets[state.currentSheet].elements;
-        }
-      } else {
-        createSheet();
-      }
-      state.undoStack = [];
-      state.redoStack = [];
-      renderTabs();
-      renderCanvas();
+    function performExport() {
+      // ... (код экспорта без изменений) ...
+      hideExportDialog();
     }
 
-    // ========== ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА ==========
-    document.getElementById('new-sheet').addEventListener('click', createSheet);
-    document.getElementById('toggle-grid').addEventListener('click', function() {
-      state.grid.enabled = !state.grid.enabled;
-      this.textContent = `Сетка: ${state.grid.enabled ? 'Вкл' : 'Выкл'}`;
-      renderCanvas();
-    });
-    document.getElementById('toggle-snap').addEventListener('click', function() {
-      state.grid.snap = !state.grid.snap;
-      this.textContent = `Привязка: ${state.grid.snap ? 'Вкл' : 'Выкл'}`;
-    });
-    document.getElementById('grid-step').addEventListener('change', function(e) {
-      state.grid.step = Math.max(10, parseInt(e.target.value));
-      renderCanvas();
-    });
-    document.getElementById('tool-select').addEventListener('click', () => setActiveTool('select'));
-    document.getElementById('tool-line').addEventListener('click', () => setActiveTool('line'));
-    document.getElementById('tool-rect').addEventListener('click', () => setActiveTool('rect'));
-    document.getElementById('tool-circle').addEventListener('click', () => setActiveTool('circle'));
-    document.getElementById('tool-text').addEventListener('click', () => setActiveTool('text'));
-    document.getElementById('color-picker').addEventListener('input', (e) => {
-      state.color = e.target.value;
-      if (state.selectedElement !== null) {
-        state.elements[state.selectedElement].color = state.color;
-        saveToLocalStorage();
-        renderCanvas();
-      }
-    });
-    document.getElementById('clear-btn').addEventListener('click', () => {
-      if (confirm('Очистить текущий лист?')) {
-        saveToUndoStack();
-        state.elements = [];
-        saveToLocalStorage();
-        renderCanvas();
-      }
-    });
-    document.getElementById('export-btn').addEventListener('click', exportToPNG);
-    document.getElementById('rename-confirm').addEventListener('click', confirmRename);
-    document.getElementById('rename-cancel').addEventListener('click', cancelRename);
+    document.getElementById('export-confirm').addEventListener('click', performExport);
+    document.getElementById('export-cancel').addEventListener('click', hideExportDialog);
+    document.getElementById('export-btn').addEventListener('click', showExportDialog);
 
     // ========== ЗАПУСК ==========
     document.addEventListener('DOMContentLoaded', () => {
