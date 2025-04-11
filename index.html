@@ -1,466 +1,134 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <title>Топографический редактор PRO</title>
-  <style>
-    /* Все стили остаются без изменений */
-    body { margin: 0; font-family: Arial; background: #f5f5f5; overflow: hidden; }
-    #app { display: flex; height: 100vh; }
-    #toolbar { width: 200px; background: #2c3e50; padding: 15px; color: white; box-shadow: 0 0 10px rgba(0,0,0,0.3); overflow-y: auto; }
-    /* ... остальные стили ... */
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Level Design Topography Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .toolbar {
+            background-color: #f0f0f0;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .sidebar {
+            width: 200px;
+            background-color: #e0e0e0;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: auto;
+            background-color: #f9f9f9;
+        }
+        
+        canvas {
+            display: block;
+            background-color: white;
+            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+        }
+        
+        .sheet {
+            margin-bottom: 5px;
+            padding: 5px;
+            background-color: #ddd;
+            cursor: pointer;
+        }
+        
+        .sheet.active {
+            background-color: #aaa;
+        }
+    </style>
 </head>
 <body>
-  <!-- Вся HTML-разметка остается без изменений -->
-  <div id="app">
-    <!-- ... -->
-  </div>
-
-  <script>
-    // ========== КОНФИГУРАЦИЯ ==========
-    const CONFIG = {
-      CANVAS_WIDTH: 2500,
-      CANVAS_HEIGHT: 1500,
-      GRID_COLOR: '#e0e0e0',
-      HANDLE_SIZE: 10,
-      SELECTION_COLOR: '#FF0000',
-      TEXT_HEIGHT: 16
-    };
-
-    // ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
-    let canvas, ctx, textInput, transformHandles;
-    let state = {
-      sheets: [],
-      currentSheet: 0,
-      currentTool: 'select',
-      color: '#000000',
-      selectedElement: null,
-      undoStack: [],
-      redoStack: [],
-      grid: { enabled: true, snap: true, step: 20, color: CONFIG.GRID_COLOR },
-      elements: [],
-      renamingSheet: null,
-      textInputActive: false,
-      isDrawing: false,
-      startX: 0,
-      startY: 0,
-      isDragging: false,
-      dragStartX: 0,
-      dragStartY: 0,
-      transformHandle: null,
-      originalElement: null
-    };
-
-    // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С ЛОКАЛЬНЫМ ХРАНИЛИЩЕМ ==========
-    function saveToLocalStorage() {
-      state.sheets[state.currentSheet].elements = state.elements;
-      localStorage.setItem('levelDesigner', JSON.stringify(state));
-    }
-
-    function loadFromLocalStorage() {
-      const saved = localStorage.getItem('levelDesigner');
-      if (saved) {
-        state = JSON.parse(saved);
-        if (state.sheets.length === 0) {
-          createSheet();
-        } else {
-          state.elements = state.sheets[state.currentSheet].elements;
-        }
-      } else {
-        createSheet();
-      }
-      renderTabs();
-      renderCanvas();
-    }
-
-    // ========== ОСНОВНЫЕ ФУНКЦИИ ==========
-    function initElements() {
-      canvas = document.getElementById('sheet');
-      if (!canvas) throw new Error("Canvas element not found");
-      
-      ctx = canvas.getContext('2d');
-      canvas.width = CONFIG.CANVAS_WIDTH;
-      canvas.height = CONFIG.CANVAS_HEIGHT;
-      
-      textInput = document.getElementById('text-input');
-      transformHandles = document.getElementById('transform-handles');
-    }
-
-    function drawGrid() {
-      if (!state.grid.enabled) return;
-      ctx.strokeStyle = state.grid.color;
-      ctx.lineWidth = 1;
-      
-      for (let x = 0; x <= canvas.width; x += state.grid.step) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
-      }
-      
-      for (let y = 0; y <= canvas.height; y += state.grid.step) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-        ctx.stroke();
-      }
-    }
-
-    function renderTransformHandles() {
-      if (!transformHandles) return;
-      transformHandles.innerHTML = '';
-      if (state.selectedElement === null) return;
-
-      const element = state.elements[state.selectedElement];
-      if (!element || element.type !== 'rect') return;
-
-      const canvasRect = canvas.getBoundingClientRect();
-      const containerRect = document.getElementById('canvas-container').getBoundingClientRect();
-      const scrollLeft = document.getElementById('canvas-container').scrollLeft;
-      const scrollTop = document.getElementById('canvas-container').scrollTop;
-
-      const offsetX = canvasRect.left - containerRect.left + scrollLeft;
-      const offsetY = canvasRect.top - containerRect.top + scrollTop;
-
-      const handles = [
-        { x: element.x1, y: element.y1, type: 'nw' },
-        { x: (element.x1 + element.x2)/2, y: element.y1, type: 'n' },
-        { x: element.x2, y: element.y1, type: 'ne' },
-        { x: element.x1, y: (element.y1 + element.y2)/2, type: 'w' },
-        { x: element.x2, y: (element.y1 + element.y2)/2, type: 'e' },
-        { x: element.x1, y: element.y2, type: 'sw' },
-        { x: (element.x1 + element.x2)/2, y: element.y2, type: 's' },
-        { x: element.x2, y: element.y2, type: 'se' }
-      ];
-
-      handles.forEach(handle => {
-        const handleEl = document.createElement('div');
-        handleEl.className = 'transform-handle';
-        handleEl.style.left = `${handle.x + offsetX}px`;
-        handleEl.style.top = `${handle.y + offsetY}px`;
-        handleEl.dataset.type = handle.type;
-        transformHandles.appendChild(handleEl);
-      });
-    }
-
-    function renderElements() {
-      state.elements.forEach((el, index) => {
-        ctx.beginPath();
-        ctx.strokeStyle = el.color;
-        ctx.fillStyle = el.color;
-        ctx.lineWidth = 2;
+    <div class="toolbar">
+        <button id="newSheetBtn">New Sheet</button>
+        <button id="deleteSheetBtn">Delete Sheet</button>
+        <button id="lineToolBtn">Line Tool</button>
+        <button id="rectToolBtn">Rectangle Tool</button>
+        <button id="toggleGridBtn">Toggle Grid</button>
+    </div>
+    
+    <div class="container">
+        <div class="sidebar" id="sidebar">
+            <!-- Sheets will be added here -->
+        </div>
         
-        if (el.type === 'line') {
-          ctx.moveTo(el.x1, el.y1);
-          ctx.lineTo(el.x2, el.y2);
-        } else if (el.type === 'rect') {
-          ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
-        } else if (el.type === 'circle') {
-          const radius = Math.sqrt(
-            Math.pow(el.x2 - el.x1, 2) + 
-            Math.pow(el.y2 - el.y1, 2)
-          );
-          ctx.arc(el.x1, el.y1, radius, 0, Math.PI * 2);
-        } else if (el.type === 'text') {
-          ctx.font = '16px Arial';
-          ctx.fillText(el.content, el.x, el.y + CONFIG.TEXT_HEIGHT);
-        }
-        
-        if (index === state.selectedElement) {
-          ctx.strokeStyle = CONFIG.SELECTION_COLOR;
-          ctx.lineWidth = 3;
-          if (el.type === 'line') {
-            ctx.moveTo(el.x1, el.y1);
-            ctx.lineTo(el.x2, el.y2);
-          } else if (el.type === 'rect') {
-            ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
-          } else if (el.type === 'circle') {
-            const radius = Math.sqrt(
-              Math.pow(el.x2 - el.x1, 2) + 
-              Math.pow(el.y2 - el.y1, 2)
-            );
-            ctx.arc(el.x1, el.y1, radius, 0, Math.PI * 2);
-          } else if (el.type === 'text') {
-            ctx.strokeText(el.content, el.x, el.y + CONFIG.TEXT_HEIGHT);
-          }
-        }
-        ctx.stroke();
-      });
-    }
+        <div class="canvas-container">
+            <canvas id="mainCanvas"></canvas>
+        </div>
+    </div>
 
-    function renderCanvas() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawGrid();
-      renderElements();
-      renderTransformHandles();
-    }
-
-    function createSheet() {
-      if (state.sheets.length >= 10) return alert('Максимум 10 листов!');
-      
-      let sheetNumber = 1;
-      while (state.sheets.some(sheet => sheet.name === `Лист ${sheetNumber}`)) {
-        sheetNumber++;
-      }
-      
-      const newSheet = {
-        id: Date.now(),
-        name: `Лист ${sheetNumber}`,
-        elements: []
-      };
-      state.sheets.push(newSheet);
-      renderTabs();
-      switchSheet(state.sheets.length - 1);
-      saveToLocalStorage();
-    }
-
-    function renderTabs() {
-      const tabsContainer = document.getElementById('sheet-tabs');
-      if (!tabsContainer) return;
-      
-      tabsContainer.innerHTML = '';
-      state.sheets.forEach((sheet, index) => {
-        const tab = document.createElement('div');
-        tab.className = `tab ${index === state.currentSheet ? 'active' : ''}`;
-        tab.innerHTML = `
-          ${sheet.name}
-          <span class="tab-edit" data-index="${index}">✏️</span>
-          <span class="tab-close" data-index="${index}">×</span>
-        `;
-        tab.onclick = () => switchSheet(index);
-        tabsContainer.appendChild(tab);
-      });
-      
-      const newTab = document.createElement('div');
-      newTab.className = 'tab';
-      newTab.textContent = '+';
-      newTab.onclick = createSheet;
-      tabsContainer.appendChild(newTab);
-
-      document.querySelectorAll('.tab-close').forEach(btn => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          deleteSheet(parseInt(btn.dataset.index));
-        };
-      });
-
-      document.querySelectorAll('.tab-edit').forEach(btn => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          renameSheet(parseInt(btn.dataset.index));
-        };
-      });
-    }
-
-    function setActiveTool(tool) {
-      state.currentTool = tool;
-      document.querySelectorAll('#toolbar .tool-btn').forEach(btn => {
-        btn.classList.remove('active');
-      });
-      const toolBtn = document.getElementById(`tool-${tool}`);
-      if (toolBtn) toolBtn.classList.add('active');
-      
-      state.selectedElement = null;
-      
-      if (tool !== 'text' && textInput) {
-        textInput.style.display = 'none';
-        state.textInputActive = false;
-      }
-      
-      renderCanvas();
-    }
-
-    // ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
-    function handleCanvasMouseDown(e) {
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      if (state.currentTool === 'select') {
-        if (state.selectedElement !== null && state.elements[state.selectedElement].type === 'rect') {
-          const element = state.elements[state.selectedElement];
-          const handles = [
-            { x: element.x1, y: element.y1, type: 'nw' },
-            { x: (element.x1 + element.x2)/2, y: element.y1, type: 'n' },
-            { x: element.x2, y: element.y1, type: 'ne' },
-            { x: element.x1, y: (element.y1 + element.y2)/2, type: 'w' },
-            { x: element.x2, y: (element.y1 + element.y2)/2, type: 'e' },
-            { x: element.x1, y: element.y2, type: 'sw' },
-            { x: (element.x1 + element.x2)/2, y: element.y2, type: 's' },
-            { x: element.x2, y: element.y2, type: 'se' }
-          ];
-          
-          for (const handle of handles) {
-            if (isPointInHandle(x, y, handle.x, handle.y)) {
-              state.transformHandle = handle.type;
-              state.originalElement = JSON.parse(JSON.stringify(element));
-              return;
+    <script>
+        // Wait for DOM to be fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Canvas setup
+            const canvas = document.getElementById('mainCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // App state
+            const state = {
+                sheets: [],
+                activeSheet: null,
+                currentTool: null,
+                gridEnabled: true,
+                drawing: false,
+                startX: 0,
+                startY: 0
+            };
+            
+            // Initialize canvas size
+            function initCanvasSize() {
+                const container = document.querySelector('.canvas-container');
+                canvas.width = container.clientWidth;
+                canvas.height = container.clientHeight;
             }
-          }
-        }
-        
-        state.selectedElement = null;
-        state.elements.forEach((el, index) => {
-          if (el.type === 'line') {
-            if (distanceToLine(x, y, el.x1, el.y1, el.x2, el.y2) < 10) {
-              state.selectedElement = index;
+            
+            // Initialize elements
+            function initElements() {
+                document.getElementById('newSheetBtn').addEventListener('click', createNewSheet);
+                document.getElementById('deleteSheetBtn').addEventListener('click', deleteActiveSheet);
+                document.getElementById('lineToolBtn').addEventListener('click', () => setTool('line'));
+                document.getElementById('rectToolBtn').addEventListener('click', () => setTool('rect'));
+                document.getElementById('toggleGridBtn').addEventListener('click', toggleGrid);
+                
+                canvas.addEventListener('mousedown', startDrawing);
+                canvas.addEventListener('mousemove', draw);
+                canvas.addEventListener('mouseup', stopDrawing);
+                canvas.addEventListener('mouseout', stopDrawing);
+                
+                window.addEventListener('resize', function() {
+                    initCanvasSize();
+                    redraw();
+                });
             }
-          } else if (el.type === 'rect') {
-            if (x >= Math.min(el.x1, el.x2) && x <= Math.max(el.x1, el.x2) &&
-                y >= Math.min(el.y1, el.y2) && y <= Math.max(el.y1, el.y2)) {
-              state.selectedElement = index;
-            }
-          } else if (el.type === 'circle') {
-            const radius = Math.sqrt(
-              Math.pow(el.x2 - el.x1, 2) + 
-              Math.pow(el.y2 - el.y1, 2)
-            );
-            const dist = Math.sqrt(Math.pow(x - el.x1, 2) + Math.pow(y - el.y1, 2));
-            if (Math.abs(dist - radius) < 10) {
-              state.selectedElement = index;
-            }
-          } else if (el.type === 'text') {
-            const textWidth = ctx.measureText(el.content).width;
-            if (x >= el.x && x <= el.x + textWidth &&
-                y >= el.y && y <= el.y + CONFIG.TEXT_HEIGHT) {
-              state.selectedElement = index;
-            }
-          }
-        });
-        
-        if (state.selectedElement !== null) {
-          state.isDragging = true;
-          state.dragStartX = x;
-          state.dragStartY = y;
-        }
-        
-        renderCanvas();
-        return;
-      }
-
-      if (state.currentTool === 'text') {
-        if (!textInput) return;
-        textInput.style.display = 'block';
-        textInput.style.left = `${x}px`;
-        textInput.style.top = `${y}px`;
-        textInput.focus();
-        state.textInputActive = true;
-        return;
-      }
-
-      state.isDrawing = true;
-      state.startX = x;
-      state.startY = y;
-      
-      if (state.currentTool === 'line' || state.currentTool === 'rect' || state.currentTool === 'circle') {
-        state.elements.push({
-          type: state.currentTool,
-          x1: x,
-          y1: y,
-          x2: x,
-          y2: y,
-          color: state.color
-        });
-      }
-    }
-
-    // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
-    function distanceToLine(x, y, x1, y1, x2, y2) {
-      const A = x - x1;
-      const B = y - y1;
-      const C = x2 - x1;
-      const D = y2 - y1;
-      const dot = A * C + B * D;
-      const len_sq = C * C + D * D;
-      let param = -1;
-      if (len_sq !== 0) param = dot / len_sq;
-      let xx, yy;
-      if (param < 0) {
-        xx = x1;
-        yy = y1;
-      } else if (param > 1) {
-        xx = x2;
-        yy = y2;
-      } else {
-        xx = x1 + param * C;
-        yy = y1 + param * D;
-      }
-      return Math.sqrt((x - xx) ** 2 + (y - yy) ** 2);
-    }
-
-    function isPointInHandle(x, y, handleX, handleY) {
-      const handleSize = CONFIG.HANDLE_SIZE + 4;
-      return (
-        x >= handleX - handleSize / 2 &&
-        x <= handleX + handleSize / 2 &&
-        y >= handleY - handleSize / 2 &&
-        y <= handleY + handleSize / 2
-      );
-    }
-
-    // ========== ЗАПУСК ПРИЛОЖЕНИЯ ==========
-    function initApp() {
-      try {
-        initElements();
-        loadFromLocalStorage();
-        setActiveTool('select');
-        renderCanvas();
-        
-        // Инициализация обработчиков событий
-        document.getElementById('new-sheet').addEventListener('click', createSheet);
-        document.getElementById('toggle-grid').addEventListener('click', function() {
-          state.grid.enabled = !state.grid.enabled;
-          this.textContent = `Сетка: ${state.grid.enabled ? 'Вкл' : 'Выкл'}`;
-          renderCanvas();
-        });
-        document.getElementById('toggle-snap').addEventListener('click', function() {
-          state.grid.snap = !state.grid.snap;
-          this.textContent = `Привязка: ${state.grid.snap ? 'Вкл' : 'Выкл'}`;
-        });
-        document.getElementById('tool-select').addEventListener('click', () => setActiveTool('select'));
-        document.getElementById('tool-line').addEventListener('click', () => setActiveTool('line'));
-        document.getElementById('tool-rect').addEventListener('click', () => setActiveTool('rect'));
-        document.getElementById('tool-circle').addEventListener('click', () => setActiveTool('circle'));
-        document.getElementById('tool-text').addEventListener('click', () => setActiveTool('text'));
-        document.getElementById('color-picker').addEventListener('input', (e) => {
-          state.color = e.target.value;
-          if (state.selectedElement !== null) {
-            state.elements[state.selectedElement].color = state.color;
-            renderCanvas();
-          }
-        });
-        document.getElementById('clear-btn').addEventListener('click', () => {
-          if (confirm('Очистить текущий лист?')) {
-            state.elements = [];
-            renderCanvas();
-          }
-        });
-        document.getElementById('export-btn').addEventListener('click', showExportDialog);
-        document.getElementById('rename-confirm').addEventListener('click', confirmRename);
-        document.getElementById('rename-cancel').addEventListener('click', cancelRename);
-        document.getElementById('export-confirm').addEventListener('click', performExport);
-        document.getElementById('export-cancel').addEventListener('click', hideExportDialog);
-
-        canvas.addEventListener('mousedown', handleCanvasMouseDown);
-        canvas.addEventListener('mousemove', handleCanvasMouseMove);
-        canvas.addEventListener('mouseup', handleCanvasMouseUp);
-        document.addEventListener('keydown', handleKeyDown);
-        textInput.addEventListener('keydown', handleTextInputKeyDown);
-        document.getElementById('grid-step').addEventListener('change', function(e) {
-          state.grid.step = Math.max(10, parseInt(e.target.value));
-          renderCanvas();
-        });
-
-      } catch (error) {
-        console.error("Application initialization failed:", error);
-        alert("Произошла ошибка при загрузке приложения. Пожалуйста, обновите страницу.");
-      }
-    }
-
-    // Запускаем приложение после полной загрузки DOM
-    document.addEventListener('DOMContentLoaded', initApp);
-  </script>
-</body>
-</html>
+            
+            // Sheet management
+            function createNewSheet() {
+                const sheetId = 'sheet-' + Date.now();
+                const sheet = {
+                   
