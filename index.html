@@ -2,185 +2,276 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>DgrmJS</title>
+    <title>Level Design Tool</title>
     <style>
         body { margin:0; overflow:hidden; font-family:Arial; }
         #app { display:flex; flex-direction:column; height:100vh; }
-        #toolbar { background:#f0f0f0; padding:8px; gap:8px; display:flex; }
+        #toolbar { background:#f0f0f0; padding:8px; display:flex; gap:8px; }
         #canvas-container { flex:1; position:relative; overflow:auto; background:#f9f9f9; }
-        #svg-container { position:absolute; width:100%; height:100%; }
-        .shape { cursor:move; }
-        rect, circle { stroke:#333; stroke-width:2; fill:white; }
-        .resize-handle { fill:#1a73e8; cursor:nwse-resize; opacity:0; transition:opacity 0.2s; }
-        .shape:hover .resize-handle { opacity:1; }
+        canvas { display:block; background:white; box-shadow:0 0 5px rgba(0,0,0,0.1); }
+        .resize-handle {
+            position:absolute; width:8px; height:8px; background:#1a73e8;
+            border-radius:50%; transform:translate(-50%,-50%); cursor:nwse-resize;
+        }
     </style>
 </head>
 <body>
     <div id="app">
-        <div id="toolbar"></div>
+        <div id="toolbar">
+            <button id="select-btn">Select</button>
+            <button id="rect-btn">Rectangle</button>
+            <button id="copy-btn">Copy (Ctrl+C)</button>
+            <button id="paste-btn">Paste (Ctrl+V)</button>
+        </div>
         <div id="canvas-container">
-            <svg id="svg-container" xmlns="http://www.w3.org/2000/svg"></svg>
+            <canvas id="main-canvas"></canvas>
         </div>
     </div>
 
     <script>
-        // ============= CORE =============
-        class Vector {
-            constructor(x = 0, y = 0) {
+        // Инициализация canvas
+        const canvas = document.getElementById('main-canvas');
+        const ctx = canvas.getContext('2d');
+        let shapes = [];
+        let selectedShape = null;
+        let isDragging = false;
+        let dragOffset = { x:0, y:0 };
+        let resizeHandle = null;
+        let clipboard = null;
+        
+        // Размеры canvas
+        function initCanvas() {
+            const container = document.getElementById('canvas-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        
+        // Класс фигуры
+        class Shape {
+            constructor(x, y, width, height) {
+                this.id = Date.now() + Math.random().toString(36).substr(2,5);
                 this.x = x;
                 this.y = y;
-            }
-            add(v) { return new Vector(this.x + v.x, this.y + v.y); }
-            subtract(v) { return new Vector(this.x - v.x, this.y - v.y); }
-            multiply(s) { return new Vector(this.x * s, this.y * s); }
-            clone() { return new Vector(this.x, this.y); }
-            static fromEvent(e, svg) {
-                const pt = svg.createSVGPoint();
-                pt.x = e.clientX; pt.y = e.clientY;
-                return new Vector(pt.x, pt.y);
-            }
-        }
-
-        class Shape {
-            constructor(type, position, size, text = "") {
-                this.id = 'shape_' + Math.random().toString(36).substr(2, 9);
-                this.type = type;
-                this.position = position.clone();
-                this.size = size.clone();
-                this.text = text;
-                this.rotation = 0;
-                this.strokeColor = "#333";
-                this.fillColor = "#fff";
-            }
-        }
-
-        // ============= RENDERER =============
-        class SVGRenderer {
-            constructor(svgElement) {
-                this.svg = svgElement;
+                this.width = width;
+                this.height = height;
+                this.color = '#000000';
+                this.handles = [
+                    { pos:'nw', x:0, y:0 }, { pos:'n', x:0.5, y:0 }, 
+                    { pos:'ne', x:1, y:0 }, { pos:'e', x:1, y:0.5 },
+                    { pos:'se', x:1, y:1 }, { pos:'s', x:0.5, y:1 },
+                    { pos:'sw', x:0, y:1 }, { pos:'w', x:0, y:0.5 }
+                ];
             }
             
-            render(shapes) {
-                this.clear();
-                shapes.forEach(shape => {
-                    const element = this.createShapeElement(shape);
-                    this.svg.appendChild(element);
-                });
-            }
-            
-            createShapeElement(shape) {
-                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                g.setAttribute('class', 'shape');
-                g.setAttribute('data-id', shape.id);
+            draw() {
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
                 
-                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                rect.setAttribute('x', shape.position.x);
-                rect.setAttribute('y', shape.position.y);
-                rect.setAttribute('width', shape.size.x);
-                rect.setAttribute('height', shape.size.y);
-                rect.setAttribute('fill', shape.fillColor);
-                rect.setAttribute('stroke', shape.strokeColor);
-                rect.setAttribute('stroke-width', '2');
-                g.appendChild(rect);
-                
-                if (shape.text) {
-                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                    text.setAttribute('x', shape.position.x + shape.size.x / 2);
-                    text.setAttribute('y', shape.position.y + shape.size.y / 2);
-                    text.setAttribute('text-anchor', 'middle');
-                    text.setAttribute('dominant-baseline', 'middle');
-                    text.textContent = shape.text;
-                    g.appendChild(text);
-                }
-                return g;
-            }
-            
-            clear() {
-                this.svg.innerHTML = '';
-            }
-        }
-
-        // ============= TOOLS =============
-        class Tool {
-            constructor(app) { this.app = app; }
-            onMouseDown(e) {}
-            onMouseMove(e) {}
-            onMouseUp(e) {}
-        }
-
-        class SelectTool extends Tool {
-            onMouseDown(e) {
-                console.log("Select tool active");
-            }
-        }
-
-        class RectangleTool extends Tool {
-            onMouseDown(e) {
-                const pos = Vector.fromEvent(e, this.app.svg);
-                const newShape = new Shape(
-                    'rectangle',
-                    pos,
-                    new Vector(150, 100),
-                    "Rectangle"
-                );
-                this.app.addShape(newShape);
-            }
-        }
-
-        // ============= MAIN APP =============
-        class Diagram {
-            constructor() {
-                this.svg = document.getElementById('svg-container');
-                this.shapes = [];
-                this.renderer = new SVGRenderer(this.svg);
-                this.tools = {
-                    select: new SelectTool(this),
-                    rectangle: new RectangleTool(this)
-                };
-                this.currentTool = this.tools.select;
-                this.initEvents();
-            }
-            
-            addShape(shape) {
-                this.shapes.push(shape);
-                this.renderer.render(this.shapes);
-            }
-            
-            initEvents() {
-                this.svg.addEventListener('mousedown', (e) => {
-                    this.currentTool.onMouseDown(e);
-                });
-                
-                document.querySelectorAll('.tool-btn').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        this.setTool(btn.dataset.tool);
+                // Рисуем маркеры трансформации если фигура выделена
+                if (selectedShape === this) {
+                    this.handles.forEach(handle => {
+                        const hx = this.x + handle.x * this.width;
+                        const hy = this.y + handle.y * this.height;
+                        ctx.fillStyle = '#1a73e8';
+                        ctx.beginPath();
+                        ctx.arc(hx, hy, 4, 0, Math.PI*2);
+                        ctx.fill();
                     });
-                });
+                }
             }
             
-            setTool(toolName) {
-                this.currentTool = this.tools[toolName];
-                console.log(`Tool set to: ${toolName}`);
+            contains(x, y) {
+                return x >= this.x && x <= this.x + this.width &&
+                       y >= this.y && y <= this.y + this.height;
+            }
+            
+            getHandleAt(x, y) {
+                for (const handle of this.handles) {
+                    const hx = this.x + handle.x * this.width;
+                    const hy = this.y + handle.y * this.height;
+                    if (Math.abs(hx - x) < 8 && Math.abs(hy - y) < 8) {
+                        return handle.pos;
+                    }
+                }
+                return null;
             }
         }
-
-        // ============= INIT =============
-        document.addEventListener('DOMContentLoaded', () => {
-            const diagram = new Diagram();
-            window.diagram = diagram;
+        
+        // Отрисовка всех фигур
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            shapes.forEach(shape => shape.draw());
+        }
+        
+        // Обработчики событий
+        function handleMouseDown(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
             
-            // Инициализация UI
-            const toolbar = document.getElementById('toolbar');
-            ['select', 'rectangle'].forEach(tool => {
-                const btn = document.createElement('button');
-                btn.className = 'tool-btn';
-                btn.textContent = tool.charAt(0).toUpperCase() + tool.slice(1);
-                btn.dataset.tool = tool;
-                toolbar.appendChild(btn);
+            // Проверяем клик по маркеру трансформации
+            if (selectedShape) {
+                resizeHandle = selectedShape.getHandleAt(x, y);
+                if (resizeHandle) {
+                    isDragging = true;
+                    return;
+                }
+            }
+            
+            // Выбор фигуры
+            selectedShape = null;
+            for (let i = shapes.length-1; i >= 0; i--) {
+                if (shapes[i].contains(x, y)) {
+                    selectedShape = shapes[i];
+                    isDragging = true;
+                    dragOffset = { x: x - selectedShape.x, y: y - selectedShape.y };
+                    break;
+                }
+            }
+            
+            render();
+        }
+        
+        function handleMouseMove(e) {
+            if (!isDragging) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            if (resizeHandle) {
+                // Изменение размера
+                const oldWidth = selectedShape.width;
+                const oldHeight = selectedShape.height;
+                
+                switch(resizeHandle) {
+                    case 'nw':
+                        selectedShape.width += selectedShape.x - x;
+                        selectedShape.height += selectedShape.y - y;
+                        selectedShape.x = x;
+                        selectedShape.y = y;
+                        break;
+                    case 'n':
+                        selectedShape.height += selectedShape.y - y;
+                        selectedShape.y = y;
+                        break;
+                    case 'ne':
+                        selectedShape.width = x - selectedShape.x;
+                        selectedShape.height += selectedShape.y - y;
+                        selectedShape.y = y;
+                        break;
+                    case 'e':
+                        selectedShape.width = x - selectedShape.x;
+                        break;
+                    case 'se':
+                        selectedShape.width = x - selectedShape.x;
+                        selectedShape.height = y - selectedShape.y;
+                        break;
+                    case 's':
+                        selectedShape.height = y - selectedShape.y;
+                        break;
+                    case 'sw':
+                        selectedShape.width += selectedShape.x - x;
+                        selectedShape.height = y - selectedShape.y;
+                        selectedShape.x = x;
+                        break;
+                    case 'w':
+                        selectedShape.width += selectedShape.x - x;
+                        selectedShape.x = x;
+                        break;
+                }
+                
+                // Минимальный размер
+                if (selectedShape.width < 10) selectedShape.width = 10;
+                if (selectedShape.height < 10) selectedShape.height = 10;
+            } else if (selectedShape) {
+                // Перемещение
+                selectedShape.x = x - dragOffset.x;
+                selectedShape.y = y - dragOffset.y;
+            }
+            
+            render();
+        }
+        
+        function handleMouseUp() {
+            isDragging = false;
+            resizeHandle = null;
+        }
+        
+        // Копирование/вставка
+        function copySelected() {
+            if (selectedShape) {
+                clipboard = {
+                    x: selectedShape.x + 20,
+                    y: selectedShape.y + 20,
+                    width: selectedShape.width,
+                    height: selectedShape.height,
+                    color: selectedShape.color
+                };
+            }
+        }
+        
+        function paste() {
+            if (clipboard) {
+                const newShape = new Shape(
+                    clipboard.x,
+                    clipboard.y,
+                    clipboard.width,
+                    clipboard.height
+                );
+                newShape.color = clipboard.color;
+                shapes.push(newShape);
+                selectedShape = newShape;
+                render();
+            }
+        }
+        
+        // Инициализация
+        function init() {
+            initCanvas();
+            
+            // Создаем тестовую фигуру
+            const rect = new Shape(100, 100, 150, 100);
+            shapes.push(rect);
+            
+            // Обработчики событий
+            canvas.addEventListener('mousedown', handleMouseDown);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseup', handleMouseUp);
+            window.addEventListener('resize', initCanvas);
+            
+            // Кнопки инструментов
+            document.getElementById('rect-btn').addEventListener('click', () => {
+                const rect = new Shape(50, 50, 150, 100);
+                shapes.push(rect);
+                selectedShape = rect;
+                render();
             });
             
-            console.log("DgrmJS initialized");
-        });
+            document.getElementById('select-btn').addEventListener('click', () => {
+                selectedShape = null;
+                render();
+            });
+            
+            document.getElementById('copy-btn').addEventListener('click', copySelected);
+            document.getElementById('paste-btn').addEventListener('click', paste);
+            
+            // Горячие клавиши
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'c') copySelected();
+                if (e.ctrlKey && e.key === 'v') paste();
+                if (e.key === 'Delete' && selectedShape) {
+                    shapes = shapes.filter(s => s !== selectedShape);
+                    selectedShape = null;
+                    render();
+                }
+            });
+            
+            render();
+        }
+        
+        init();
     </script>
 </body>
 </html>
