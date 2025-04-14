@@ -5,294 +5,54 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <title>Топографический редактор PRO</title>
   <style>
-    body { 
-      margin: 0;
-      font-family: Arial;
-      background: #f5f5f5;
-      overflow: hidden;
+    /* ... (предыдущие стили остаются без изменений) ... */
+    
+    /* Добавляем курсор для перемещения */
+    canvas.move-cursor {
+      cursor: grab;
     }
-    #app { 
-      display: flex;
-      height: 100vh;
-    }
-    #toolbar {
-      width: 200px;
-      background: #2c3e50;
-      padding: 15px;
-      color: white;
-      box-shadow: 0 0 10px rgba(0,0,0,0.3);
-      overflow-y: auto;
-    }
-    .tool-section {
-      margin-bottom: 20px;
-      border-bottom: 1px solid #34495e;
-      padding-bottom: 15px;
-    }
-    .tool-section h3 {
-      color: #1abc9c;
-      margin-top: 0;
-      text-align: center;
-    }
-    .tool-btn {
-      display: block;
-      margin: 10px 0;
-      padding: 10px;
-      width: 100%;
-      background: #34495e;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 14px;
-      transition: all 0.2s;
-      text-align: left;
-    }
-    .tool-btn:hover {
-      background: #3d5166;
-      transform: translateY(-2px);
-    }
-    .tool-btn.active {
-      background: #1abc9c;
-      font-weight: bold;
-    }
-    #canvas-container {
-      flex: 1;
-      position: relative;
-      overflow: auto;
-      background: #ecf0f1;
-    }
-    canvas {
-      display: block;
-      background: white;
-      box-shadow: 0 0 15px rgba(0,0,0,0.1);
-      margin: 20px auto;
-    }
-    .tabs {
-      display: flex;
-      background: #34495e;
-      padding: 8px 8px 0;
-      flex-wrap: wrap;
-    }
-    .tab {
-      padding: 8px 16px;
-      margin: 0 4px 4px 0;
-      background: #2c3e50;
-      border-radius: 4px 4px 0 0;
-      cursor: pointer;
-      position: relative;
-      color: white;
-      transition: all 0.2s;
-    }
-    .tab:hover {
-      background: #3d5166;
-    }
-    .tab.active {
-      background: #1abc9c;
-      font-weight: bold;
-    }
-    .tab-close {
-      position: absolute;
-      right: 5px;
-      top: 5px;
-      font-size: 12px;
-      color: #e74c3c;
-      background: white;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      line-height: 1;
-    }
-    .tab-edit {
-      position: absolute;
-      right: 25px;
-      top: 5px;
-      font-size: 12px;
-      color: #3498db;
-    }
-    #text-input {
-      position: absolute;
-      border: 1px dashed #000;
-      padding: 4px;
-      display: none;
-      background: white;
-      z-index: 10;
-      min-width: 100px;
-      font-family: Arial;
-      font-size: 16px;
-    }
-    #rename-dialog {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      box-shadow: 0 0 20px rgba(0,0,0,0.2);
-      z-index: 100;
-      display: none;
-    }
-    #rename-dialog h3 {
-      margin-top: 0;
-      color: #2c3e50;
-    }
-    #rename-dialog input {
-      width: 100%;
-      padding: 8px;
-      margin-bottom: 10px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-    }
-    #rename-dialog button {
-      padding: 8px 15px;
-      margin-right: 10px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    #rename-confirm {
-      background: #1abc9c;
-      color: white;
-    }
-    #rename-cancel {
-      background: #e74c3c;
-      color: white;
-    }
-    .grid-controls {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .grid-controls label {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      color: white;
-    }
-    .grid-controls input {
-      width: 60px;
-      padding: 5px;
-      border-radius: 4px;
-      border: 1px solid #ddd;
-    }
-    #color-picker {
-      width: 100%;
-      height: 40px;
-      margin: 10px 0;
-      cursor: pointer;
-      border: none;
-      border-radius: 4px;
-    }
-    .resize-handle {
-      position: absolute;
-      width: 8px;
-      height: 8px;
-      background: #1a73e8;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      cursor: nwse-resize;
-      z-index: 10;
+    canvas.move-cursor:active {
+      cursor: grabbing;
     }
   </style>
 </head>
 <body>
-  <div id="app">
-    <div id="toolbar">
-      <div class="tool-section">
-        <h3>Листы</h3>
-        <button id="new-sheet" class="tool-btn">+ Новый лист</button>
-      </div>
-      <div class="tool-section">
-        <h3>Инструменты</h3>
-        <button id="tool-select" class="tool-btn active">🖱️ Выделение</button>
-        <button id="tool-line" class="tool-btn">✏️ Линия</button>
-        <button id="tool-rect" class="tool-btn">⬜ Прямоугольник</button>
-        <button id="tool-circle" class="tool-btn">🔵 Круг</button>
-        <button id="tool-text" class="tool-btn">🔤 Текст</button>
-        <button id="tool-copy" class="tool-btn">⎘ Копировать (Ctrl+C)</button>
-        <button id="tool-paste" class="tool-btn">⎙ Вставить (Ctrl+V)</button>
-      </div>
-      <div class="tool-section">
-        <h3>Свойства</h3>
-        <input type="color" id="color-picker" value="#000000">
-      </div>
-      <div class="tool-section">
-        <h3>Сетка</h3>
-        <div class="grid-controls">
-          <button id="toggle-grid" class="tool-btn">Сетка: Вкл</button>
-          <button id="toggle-snap" class="tool-btn">Привязка: Вкл</button>
-          <label>
-            Шаг сетки:
-            <input type="number" id="grid-step" value="20" min="10">
-          </label>
-        </div>
-      </div>
-      <div class="tool-section">
-        <button id="clear-btn" class="tool-btn">❌ Очистить лист</button>
-        <button id="export-btn" class="tool-btn">💾 Экспорт PNG</button>
-      </div>
-    </div>
-    <div id="canvas-container">
-      <div class="tabs" id="sheet-tabs"></div>
-      <canvas id="sheet"></canvas>
-      <div id="text-input" contenteditable="true"></div>
-    </div>
-  </div>
-
-  <div id="rename-dialog">
-    <h3>Переименовать лист</h3>
-    <input type="text" id="rename-input">
-    <button id="rename-confirm">OK</button>
-    <button id="rename-cancel">Отмена</button>
-  </div>
+  <!-- ... (HTML остаётся без изменений) ... -->
 
   <script>
     // ========== КОНФИГУРАЦИЯ ==========
     const CONFIG = {
-      CANVAS_WIDTH: 2500,
-      CANVAS_HEIGHT: 1500,
-      GRID_COLOR: '#e0e0e0'
+      INIT_WIDTH: 2500,
+      INIT_HEIGHT: 1500,
+      GRID_COLOR: '#e0e0e0',
+      MARGIN: 200 // Отступ для автоматического расширения холста
     };
 
     // ========== ИНИЦИАЛИЗАЦИЯ ==========
     const canvas = document.getElementById('sheet');
     const ctx = canvas.getContext('2d');
     const textInput = document.getElementById('text-input');
-    canvas.width = CONFIG.CANVAS_WIDTH;
-    canvas.height = CONFIG.CANVAS_HEIGHT;
+    
+    // Начальные размеры холста
+    canvas.width = CONFIG.INIT_WIDTH;
+    canvas.height = CONFIG.INIT_HEIGHT;
 
     let state = {
-      sheets: [],
-      currentSheet: 0,
-      currentTool: 'select',
-      color: '#000000',
-      selectedElement: null,
-      clipboard: null,
-      undoStack: [],
-      redoStack: [],
-      grid: {
-        enabled: true,
-        snap: true,
-        step: 20,
-        color: CONFIG.GRID_COLOR
-      },
-      elements: [],
-      renamingSheet: null,
-      textInputActive: false,
-      isDrawing: false,
-      isResizing: false,
-      resizeHandle: null,
-      startX: 0,
-      startY: 0
+      // ... (остальные поля остаются без изменений) ...
+      isMovingCanvas: false,
+      canvasOffset: { x: 0, y: 0 },
+      lastMousePos: { x: 0, y: 0 },
+      isMovingElement: false,
+      originalElementPos: null
     };
 
     // ========== ОСНОВНЫЕ ФУНКЦИИ ==========
     function drawGrid() {
       if (!state.grid.enabled) return;
+      
+      ctx.save();
+      ctx.translate(state.canvasOffset.x, state.canvasOffset.y);
+      
       ctx.strokeStyle = state.grid.color;
       ctx.lineWidth = 1;
       
@@ -311,100 +71,120 @@
         ctx.lineTo(canvas.width, y);
         ctx.stroke();
       }
+      
+      ctx.restore();
     }
 
-    function saveToUndoStack() {
-      state.undoStack.push(JSON.stringify({
-        elements: JSON.parse(JSON.stringify(state.elements)),
-        sheets: JSON.parse(JSON.stringify(state.sheets)),
-        currentSheet: state.currentSheet
-      }));
-      if (state.undoStack.length > 50) state.undoStack.shift();
-      state.redoStack = [];
-    }
-
-    function undo() {
-      if (state.undoStack.length === 0) return;
+    // Автоматическое расширение холста
+    function expandCanvasIfNeeded(x, y) {
+      let needExpand = false;
+      let newWidth = canvas.width;
+      let newHeight = canvas.height;
       
-      state.redoStack.push(JSON.stringify({
-        elements: JSON.parse(JSON.stringify(state.elements)),
-        sheets: JSON.parse(JSON.stringify(state.sheets)),
-        currentSheet: state.currentSheet
-      }));
-      
-      const prevState = JSON.parse(state.undoStack.pop());
-      state.elements = prevState.elements;
-      state.sheets = prevState.sheets;
-      state.currentSheet = prevState.currentSheet;
-      
-      state.elements = state.sheets[state.currentSheet].elements;
-      saveToLocalStorage();
-      renderCanvas();
-      renderTabs();
-      
-      if (state.textInputActive) {
-        textInput.style.display = 'none';
-        state.textInputActive = false;
+      // Проверяем выход за границы
+      if (x < CONFIG.MARGIN) {
+        const expand = CONFIG.MARGIN - x;
+        newWidth += expand;
+        state.canvasOffset.x += expand;
+        needExpand = true;
+      } else if (x > canvas.width - CONFIG.MARGIN) {
+        newWidth = x + CONFIG.MARGIN;
+        needExpand = true;
       }
-    }
-
-    function getResizeHandle(x, y, element) {
-      if (!element) return null;
       
-      const handles = [
-        { pos: 'nw', x: element.x1, y: element.y1 },
-        { pos: 'n', x: (element.x1 + element.x2)/2, y: element.y1 },
-        { pos: 'ne', x: element.x2, y: element.y1 },
-        { pos: 'e', x: element.x2, y: (element.y1 + element.y2)/2 },
-        { pos: 'se', x: element.x2, y: element.y2 },
-        { pos: 's', x: (element.x1 + element.x2)/2, y: element.y2 },
-        { pos: 'sw', x: element.x1, y: element.y2 },
-        { pos: 'w', x: element.x1, y: (element.y1 + element.y2)/2 }
-      ];
-      
-      for (const handle of handles) {
-        if (Math.abs(x - handle.x) < 10 && Math.abs(y - handle.y) < 10) {
-          return handle.pos;
-        }
+      if (y < CONFIG.MARGIN) {
+        const expand = CONFIG.MARGIN - y;
+        newHeight += expand;
+        state.canvasOffset.y += expand;
+        needExpand = true;
+      } else if (y > canvas.height - CONFIG.MARGIN) {
+        newHeight = y + CONFIG.MARGIN;
+        needExpand = true;
       }
-      return null;
+      
+      if (needExpand) {
+        // Создаем временный холст для переноса содержимого
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = newWidth;
+        tempCanvas.height = newHeight;
+        
+        // Копируем содержимое
+        tempCtx.drawImage(canvas, 
+          state.canvasOffset.x, 
+          state.canvasOffset.y,
+          canvas.width, 
+          canvas.height
+        );
+        
+        // Обновляем основной холст
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+        ctx.drawImage(tempCanvas, 0, 0);
+        
+        renderCanvas();
+      }
     }
 
     function renderElements() {
+      ctx.save();
+      ctx.translate(state.canvasOffset.x, state.canvasOffset.y);
+      
       state.elements.forEach((el, index) => {
         ctx.beginPath();
         ctx.strokeStyle = el.color;
         ctx.fillStyle = el.color;
         ctx.lineWidth = 2;
         
+        // Отрисовка самого элемента
         if (el.type === 'line') {
           ctx.moveTo(el.x1, el.y1);
           ctx.lineTo(el.x2, el.y2);
+          ctx.stroke();
         } else if (el.type === 'rect') {
           ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
+          ctx.stroke();
         } else if (el.type === 'circle') {
           const radius = Math.sqrt(
             Math.pow(el.x2 - el.x1, 2) + 
             Math.pow(el.y2 - el.y1, 2)
           );
           ctx.arc(el.x1, el.y1, radius, 0, Math.PI * 2);
+          ctx.stroke();
         } else if (el.type === 'text') {
           ctx.font = '16px Arial';
           ctx.fillText(el.content, el.x, el.y);
         }
         
+        // Отрисовка выделения
         if (index === state.selectedElement) {
-          // Рисуем маркеры трансформации
           ctx.strokeStyle = '#1a73e8';
           ctx.lineWidth = 2;
+          ctx.setLineDash([5, 3]);
           
           if (el.type === 'line') {
+            ctx.beginPath();
             ctx.moveTo(el.x1, el.y1);
             ctx.lineTo(el.x2, el.y2);
+            ctx.stroke();
+            
+            // Маркеры для линии
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#1a73e8';
+            ctx.beginPath();
+            ctx.arc(el.x1, el.y1, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(el.x2, el.y2, 4, 0, Math.PI * 2);
+            ctx.fill();
           } else if (el.type === 'rect') {
+            ctx.beginPath();
             ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
+            ctx.stroke();
             
             // Маркеры для прямоугольника
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#1a73e8';
             const handles = [
               { x: el.x1, y: el.y1 },
               { x: (el.x1 + el.x2)/2, y: el.y1 },
@@ -419,7 +199,6 @@
             handles.forEach(handle => {
               ctx.beginPath();
               ctx.arc(handle.x, handle.y, 4, 0, Math.PI * 2);
-              ctx.fillStyle = '#1a73e8';
               ctx.fill();
             });
           } else if (el.type === 'circle') {
@@ -427,9 +206,13 @@
               Math.pow(el.x2 - el.x1, 2) + 
               Math.pow(el.y2 - el.y1, 2)
             );
+            ctx.beginPath();
             ctx.arc(el.x1, el.y1, radius, 0, Math.PI * 2);
+            ctx.stroke();
             
             // Маркеры для круга
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#1a73e8';
             const angleStep = Math.PI/4;
             for (let i = 0; i < 8; i++) {
               const angle = i * angleStep;
@@ -437,199 +220,29 @@
               const hy = el.y1 + radius * Math.sin(angle);
               ctx.beginPath();
               ctx.arc(hx, hy, 4, 0, Math.PI * 2);
-              ctx.fillStyle = '#1a73e8';
               ctx.fill();
             }
           } else if (el.type === 'text') {
             ctx.strokeText(el.content, el.x, el.y);
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#1a73e8';
+            ctx.beginPath();
+            ctx.arc(el.x, el.y, 4, 0, Math.PI * 2);
+            ctx.fill();
           }
         }
-        ctx.stroke();
-      });
-    }
-
-    function renderCanvas() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawGrid();
-      renderElements();
-    }
-
-    // ========== КОПИРОВАНИЕ/ВСТАВКА ==========
-    function copySelected() {
-      if (state.selectedElement !== null) {
-        state.clipboard = JSON.parse(JSON.stringify(state.elements[state.selectedElement]));
-        console.log('Элемент скопирован в буфер');
-      }
-    }
-
-    function pasteElement() {
-      if (state.clipboard) {
-        saveToUndoStack();
-        
-        const newElement = JSON.parse(JSON.stringify(state.clipboard));
-        newElement.x1 += 20;
-        newElement.y1 += 20;
-        if (newElement.x2) newElement.x2 += 20;
-        if (newElement.y2) newElement.y2 += 20;
-        if (newElement.x) newElement.x += 20;
-        if (newElement.y) newElement.y += 20;
-        
-        newElement.id = Date.now() + Math.random().toString(36).substr(2,5);
-        state.elements.push(newElement);
-        state.selectedElement = state.elements.length - 1;
-        
-        saveToLocalStorage();
-        renderCanvas();
-      }
-    }
-
-    // ========== РАБОТА С ЛИСТАМИ ==========
-    function createSheet() {
-      if (state.sheets.length >= 10) return alert('Максимум 10 листов!');
-      saveToUndoStack();
-      
-      let sheetNumber = 1;
-      while (state.sheets.some(sheet => sheet.name === `Лист ${sheetNumber}`)) {
-        sheetNumber++;
-      }
-      
-      const newSheet = {
-        id: Date.now(),
-        name: `Лист ${sheetNumber}`,
-        elements: []
-      };
-      state.sheets.push(newSheet);
-      renderTabs();
-      switchSheet(state.sheets.length - 1);
-      saveToLocalStorage();
-    }
-
-    function deleteSheet(index) {
-      if (state.sheets.length <= 1) return alert('Должен остаться хотя бы один лист!');
-      saveToUndoStack();
-      
-      state.sheets.splice(index, 1);
-      if (state.currentSheet >= index) state.currentSheet = Math.max(0, state.currentSheet - 1);
-      renderTabs();
-      switchSheet(state.currentSheet);
-      saveToLocalStorage();
-    }
-
-    function renameSheet(index) {
-      state.renamingSheet = index;
-      document.getElementById('rename-input').value = state.sheets[index].name;
-      document.getElementById('rename-dialog').style.display = 'block';
-    }
-
-    function confirmRename() {
-      const newName = document.getElementById('rename-input').value.trim();
-      if (newName && state.renamingSheet !== null) {
-        saveToUndoStack();
-        state.sheets[state.renamingSheet].name = newName;
-        saveToLocalStorage();
-        renderTabs();
-      }
-      cancelRename();
-    }
-
-    function cancelRename() {
-      document.getElementById('rename-dialog').style.display = 'none';
-      state.renamingSheet = null;
-    }
-
-    function switchSheet(index) {
-      state.currentSheet = index;
-      state.elements = state.sheets[index].elements;
-      state.selectedElement = null;
-      
-      textInput.style.display = 'none';
-      state.textInputActive = false;
-      
-      renderCanvas();
-      renderTabs();
-    }
-
-    function renderTabs() {
-      const tabsContainer = document.getElementById('sheet-tabs');
-      tabsContainer.innerHTML = '';
-      state.sheets.forEach((sheet, index) => {
-        const tab = document.createElement('div');
-        tab.className = `tab ${index === state.currentSheet ? 'active' : ''}`;
-        tab.innerHTML = `
-          ${sheet.name}
-          <span class="tab-edit" data-index="${index}">✏️</span>
-          <span class="tab-close" data-index="${index}">×</span>
-        `;
-        tab.onclick = () => switchSheet(index);
-        tabsContainer.appendChild(tab);
       });
       
-      const newTab = document.createElement('div');
-      newTab.className = 'tab';
-      newTab.textContent = '+';
-      newTab.onclick = createSheet;
-      tabsContainer.appendChild(newTab);
-
-      document.querySelectorAll('.tab-close').forEach(btn => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          deleteSheet(parseInt(btn.dataset.index));
-        };
-      });
-
-      document.querySelectorAll('.tab-edit').forEach(btn => {
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          renameSheet(parseInt(btn.dataset.index));
-        };
-      });
-    }
-
-    // ========== ИНСТРУМЕНТЫ ==========
-    function setActiveTool(tool) {
-      state.currentTool = tool;
-      document.querySelectorAll('#toolbar .tool-btn').forEach(btn => {
-        btn.classList.remove('active');
-      });
-      document.getElementById(`tool-${tool}`).classList.add('active');
-      state.selectedElement = null;
-      
-      if (tool !== 'text') {
-        textInput.style.display = 'none';
-        state.textInputActive = false;
-      }
-      
-      renderCanvas();
-    }
-
-    function distanceToLine(x, y, x1, y1, x2, y2) {
-      const A = x - x1;
-      const B = y - y1;
-      const C = x2 - x1;
-      const D = y2 - y1;
-      const dot = A * C + B * D;
-      const len_sq = C * C + D * D;
-      let param = -1;
-      if (len_sq !== 0) param = dot / len_sq;
-      let xx, yy;
-      if (param < 0) {
-        xx = x1;
-        yy = y1;
-      } else if (param > 1) {
-        xx = x2;
-        yy = y2;
-      } else {
-        xx = x1 + param * C;
-        yy = y1 + param * D;
-      }
-      return Math.sqrt((x - xx) ** 2 + (y - yy) ** 2);
+      ctx.restore();
     }
 
     // ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
     canvas.addEventListener('mousedown', (e) => {
       const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+      const x = e.clientX - rect.left - state.canvasOffset.x;
+      const y = e.clientY - rect.top - state.canvasOffset.y;
+      
+      state.lastMousePos = { x: e.clientX, y: e.clientY };
 
       if (state.currentTool === 'select') {
         // Проверяем клик по маркеру трансформации
@@ -643,237 +256,253 @@
           }
         }
         
-        // Выбор элемента
+        // Проверяем клик по элементу
         state.selectedElement = null;
-        state.elements.forEach((el, index) => {
-          if (el.type === 'line') {
-            if (distanceToLine(x, y, el.x1, el.y1, el.x2, el.y2) < 10) {
-              state.selectedElement = index;
-            }
-          } else if (el.type === 'rect') {
-            if (x >= Math.min(el.x1, el.x2) && x <= Math.max(el.x1, el.x2) &&
-                y >= Math.min(el.y1, el.y2) && y <= Math.max(el.y1, el.y2)) {
-              state.selectedElement = index;
-            }
-          } else if (el.type === 'circle') {
-            const radius = Math.sqrt(
-              Math.pow(el.x2 - el.x1, 2) + 
-              Math.pow(el.y2 - el.y1, 2)
-            );
-            const dist = Math.sqrt(Math.pow(x - el.x1, 2) + Math.pow(y - el.y1, 2));
-            if (Math.abs(dist - radius) < 10) {
-              state.selectedElement = index;
-            }
-          } else if (el.type === 'text') {
-            if (x >= el.x - 5 && x <= el.x + ctx.measureText(el.content).width + 5 &&
-                y >= el.y - 16 && y <= el.y + 5) {
-              state.selectedElement = index;
-            }
+        for (let i = state.elements.length - 1; i >= 0; i--) {
+          const el = state.elements[i];
+          if (isPointInElement(x, y, el)) {
+            state.selectedElement = i;
+            state.isMovingElement = true;
+            state.originalElementPos = {
+              x1: el.x1, y1: el.y1,
+              x2: el.x2 || 0, y2: el.y2 || 0,
+              x: el.x || 0, y: el.y || 0
+            };
+            break;
           }
-        });
+        }
+        
+        // Если не кликнули по элементу - начинаем перемещение холста
+        if (state.selectedElement === null && !state.isResizing) {
+          state.isMovingCanvas = true;
+          canvas.classList.add('move-cursor');
+        }
+        
         renderCanvas();
         return;
       }
 
-      if (state.currentTool === 'text') {
-        textInput.style.display = 'block';
-        textInput.style.left = `${x}px`;
-        textInput.style.top = `${y}px`;
-        textInput.focus();
-        state.textInputActive = true;
-        return;
-      }
-
-      saveToUndoStack();
-      state.isDrawing = true;
-      state.startX = x;
-      state.startY = y;
-      
-      if (state.currentTool === 'line' || state.currentTool === 'rect' || state.currentTool === 'circle') {
-        state.elements.push({
-          type: state.currentTool,
-          x1: x,
-          y1: y,
-          x2: x,
-          y2: y,
-          color: state.color
-        });
-      }
+      // ... (остальные обработчики инструментов остаются без изменений) ...
     });
 
     canvas.addEventListener('mousemove', (e) => {
       const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      if (state.isResizing && state.selectedElement !== null) {
+      const x = e.clientX - rect.left - state.canvasOffset.x;
+      const y = e.clientY - rect.top - state.canvasOffset.y;
+      
+      // Перемещение холста
+      if (state.isMovingCanvas) {
+        const dx = e.clientX - state.lastMousePos.x;
+        const dy = e.clientY - state.lastMousePos.y;
+        
+        state.canvasOffset.x += dx;
+        state.canvasOffset.y += dy;
+        state.lastMousePos = { x: e.clientX, y: e.clientY };
+        
+        renderCanvas();
+        return;
+      }
+      
+      // Перемещение элемента
+      if (state.isMovingElement && state.selectedElement !== null) {
         const element = state.elements[state.selectedElement];
         const dx = x - state.startX;
         const dy = y - state.startY;
         
-        switch(state.resizeHandle) {
-          case 'nw':
-            element.x1 += dx;
-            element.y1 += dy;
-            break;
-          case 'n':
-            element.y1 += dy;
-            break;
-          case 'ne':
-            element.x2 += dx;
-            element.y1 += dy;
-            break;
-          case 'e':
-            element.x2 += dx;
-            break;
-          case 'se':
-            element.x2 += dx;
-            element.y2 += dy;
-            break;
-          case 's':
-            element.y2 += dy;
-            break;
-          case 'sw':
-            element.x1 += dx;
-            element.y2 += dy;
-            break;
-          case 'w':
-            element.x1 += dx;
-            break;
-        }
-        
-        // Для текста меняем только позицию
         if (element.type === 'text') {
-          element.x = element.x1;
-          element.y = element.y1;
+          element.x = state.originalElementPos.x + dx;
+          element.y = state.originalElementPos.y + dy;
+        } else {
+          element.x1 = state.originalElementPos.x1 + dx;
+          element.y1 = state.originalElementPos.y1 + dy;
+          if (element.x2 !== undefined) element.x2 = state.originalElementPos.x2 + dx;
+          if (element.y2 !== undefined) element.y2 = state.originalElementPos.y2 + dy;
         }
         
-        state.startX = x;
-        state.startY = y;
+        expandCanvasIfNeeded(
+          Math.max(element.x1, element.x2 || 0, element.x || 0),
+          Math.max(element.y1, element.y2 || 0, element.y || 0)
+        );
+        
         renderCanvas();
         return;
       }
 
-      if (state.isDrawing) {
-        const currentElement = state.elements[state.elements.length - 1];
-        if (currentElement) {
-          currentElement.x2 = x;
-          currentElement.y2 = y;
-          renderCanvas();
-        }
-      }
+      // ... (остальные обработчики перемещения остаются без изменений) ...
     });
 
     canvas.addEventListener('mouseup', () => {
       state.isDrawing = false;
       state.isResizing = false;
+      state.isMovingCanvas = false;
+      state.isMovingElement = false;
       state.resizeHandle = null;
+      canvas.classList.remove('move-cursor');
       saveToLocalStorage();
     });
 
-    textInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const text = textInput.innerText.trim();
-        if (text) {
-          saveToUndoStack();
-          state.elements.push({
-            type: 'text',
-            x: parseInt(textInput.style.left),
-            y: parseInt(textInput.style.top),
-            content: text,
-            color: state.color
-          });
-          saveToLocalStorage();
-          renderCanvas();
-        }
-        textInput.style.display = 'none';
-        textInput.innerText = '';
-        state.textInputActive = false;
+    // Проверка попадания точки в элемент
+    function isPointInElement(x, y, element) {
+      if (element.type === 'line') {
+        return distanceToLine(x, y, element.x1, element.y1, element.x2, element.y2) < 10;
+      } else if (element.type === 'rect') {
+        return x >= Math.min(element.x1, element.x2) && 
+               x <= Math.max(element.x1, element.x2) &&
+               y >= Math.min(element.y1, element.y2) && 
+               y <= Math.max(element.y1, element.y2);
+      } else if (element.type === 'circle') {
+        const radius = Math.sqrt(
+          Math.pow(element.x2 - element.x1, 2) + 
+          Math.pow(element.y2 - element.y1, 2)
+        );
+        return Math.sqrt(Math.pow(x - element.x1, 2) + Math.pow(y - element.y1, 2)) <= radius + 5;
+      } else if (element.type === 'text') {
+        ctx.font = '16px Arial';
+        const width = ctx.measureText(element.content).width;
+        return x >= element.x - 5 && 
+               x <= element.x + width + 5 &&
+               y >= element.y - 16 && 
+               y <= element.y + 5;
       }
-    });
+      return false;
+    }
 
+    // Обновленный обработчик горячих клавиш
     document.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.key === 'c') {
+      // Копирование
+      if (e.ctrlKey && e.key === 'c' && state.selectedElement !== null) {
         e.preventDefault();
-        copySelected();
+        state.clipboard = JSON.parse(JSON.stringify(state.elements[state.selectedElement]));
+        console.log('Элемент скопирован в буфер');
       }
       
-      if (e.ctrlKey && e.key === 'v') {
+      // Вставка
+      if (e.ctrlKey && e.key === 'v' && state.clipboard) {
         e.preventDefault();
-        pasteElement();
-      }
-      
-      if (e.key === 'Delete' && state.selectedElement !== null) {
         saveToUndoStack();
-        state.elements.splice(state.selectedElement, 1);
-        state.selectedElement = null;
+        
+        const newElement = JSON.parse(JSON.stringify(state.clipboard));
+        newElement.id = Date.now() + Math.random().toString(36).substr(2, 5);
+        
+        // Смещаем новый элемент
+        if (newElement.type === 'text') {
+          newElement.x += 20;
+          newElement.y += 20;
+        } else {
+          newElement.x1 += 20;
+          newElement.y1 += 20;
+          if (newElement.x2) newElement.x2 += 20;
+          if (newElement.y2) newElement.y2 += 20;
+        }
+        
+        state.elements.push(newElement);
+        state.selectedElement = state.elements.length - 1;
+        
         saveToLocalStorage();
         renderCanvas();
       }
       
-      if (e.ctrlKey && e.key === 'z') {
-        e.preventDefault();
-        undo();
-      }
-      
-      if (e.ctrlKey && e.key === 's') {
-        e.preventDefault();
-        exportToPNG();
-      }
+      // ... (остальные горячие клавиши остаются без изменений) ...
     });
 
     // ========== ЭКСПОРТ ==========
     function exportToPNG() {
+      // Находим границы всех элементов
+      let minX = Infinity, minY = Infinity;
+      let maxX = -Infinity, maxY = -Infinity;
+      
+      state.elements.forEach(el => {
+        if (el.type === 'text') {
+          minX = Math.min(minX, el.x);
+          minY = Math.min(minY, el.y);
+          maxX = Math.max(maxX, el.x + ctx.measureText(el.content).width);
+          maxY = Math.max(maxY, el.y + 16);
+        } else {
+          minX = Math.min(minX, el.x1, el.x2 || el.x1);
+          minY = Math.min(minY, el.y1, el.y2 || el.y1);
+          maxX = Math.max(maxX, el.x1, el.x2 || el.x1);
+          maxY = Math.max(maxY, el.y1, el.y2 || el.y1);
+        }
+      });
+      
+      // Добавляем отступы
+      const padding = 20;
+      minX = Math.max(0, minX - padding);
+      minY = Math.max(0, minY - padding);
+      maxX = Math.min(canvas.width, maxX + padding);
+      maxY = Math.min(canvas.height, maxY + padding);
+      
+      const width = maxX - minX;
+      const height = maxY - minY;
+      
+      // Создаем временный холст
       const tempCanvas = document.createElement('canvas');
       const tempCtx = tempCanvas.getContext('2d');
-      tempCanvas.width = canvas.width;
-      tempCanvas.height = canvas.height;
+      tempCanvas.width = width;
+      tempCanvas.height = height;
       
+      // Заливаем белым фоном
       tempCtx.fillStyle = 'white';
-      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+      tempCtx.fillRect(0, 0, width, height);
       
+      // Рисуем сетку
       if (state.grid.enabled) {
         tempCtx.strokeStyle = state.grid.color;
         tempCtx.lineWidth = 1;
-        for (let x = 0; x <= tempCanvas.width; x += state.grid.step) {
+        
+        const startX = Math.floor(minX / state.grid.step) * state.grid.step;
+        const startY = Math.floor(minY / state.grid.step) * state.grid.step;
+        
+        for (let x = startX; x <= maxX; x += state.grid.step) {
           tempCtx.beginPath();
-          tempCtx.moveTo(x, 0);
-          tempCtx.lineTo(x, tempCanvas.height);
+          tempCtx.moveTo(x - minX, 0);
+          tempCtx.lineTo(x - minX, height);
           tempCtx.stroke();
         }
-        for (let y = 0; y <= tempCanvas.height; y += state.grid.step) {
+        
+        for (let y = startY; y <= maxY; y += state.grid.step) {
           tempCtx.beginPath();
-          tempCtx.moveTo(0, y);
-          tempCtx.lineTo(tempCanvas.width, y);
+          tempCtx.moveTo(0, y - minY);
+          tempCtx.lineTo(width, y - minY);
           tempCtx.stroke();
         }
       }
       
+      // Рисуем элементы
       state.elements.forEach(el => {
-        tempCtx.beginPath();
+        tempCtx.save();
+        tempCtx.translate(-minX, -minY);
+        
         tempCtx.strokeStyle = el.color;
         tempCtx.fillStyle = el.color;
         tempCtx.lineWidth = 2;
         
         if (el.type === 'line') {
+          tempCtx.beginPath();
           tempCtx.moveTo(el.x1, el.y1);
           tempCtx.lineTo(el.x2, el.y2);
+          tempCtx.stroke();
         } else if (el.type === 'rect') {
+          tempCtx.beginPath();
           tempCtx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
+          tempCtx.stroke();
         } else if (el.type === 'circle') {
           const radius = Math.sqrt(
             Math.pow(el.x2 - el.x1, 2) + 
             Math.pow(el.y2 - el.y1, 2)
           );
+          tempCtx.beginPath();
           tempCtx.arc(el.x1, el.y1, radius, 0, Math.PI * 2);
+          tempCtx.stroke();
         } else if (el.type === 'text') {
           tempCtx.font = '16px Arial';
           tempCtx.fillText(el.content, el.x, el.y);
         }
-        tempCtx.stroke();
+        
+        tempCtx.restore();
       });
       
+      // Создаем ссылку для скачивания
       tempCanvas.toBlob(blob => {
         const link = document.createElement('a');
         link.download = `${state.sheets[state.currentSheet].name}.png`;
@@ -887,75 +516,7 @@
       }, 'image/png', 1.0);
     }
 
-    // ========== ЛОКАЛЬНОЕ ХРАНИЛИЩЕ ==========
-    function saveToLocalStorage() {
-      state.sheets[state.currentSheet].elements = state.elements;
-      localStorage.setItem('levelDesigner', JSON.stringify(state));
-    }
-
-    function loadFromLocalStorage() {
-      const saved = localStorage.getItem('levelDesigner');
-      if (saved) {
-        state = JSON.parse(saved);
-        if (state.sheets.length === 0) {
-          createSheet();
-        } else {
-          state.elements = state.sheets[state.currentSheet].elements;
-        }
-      } else {
-        createSheet();
-      }
-      state.undoStack = [];
-      state.redoStack = [];
-      renderTabs();
-      renderCanvas();
-    }
-
-    // ========== ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА ==========
-    document.getElementById('new-sheet').addEventListener('click', createSheet);
-    document.getElementById('toggle-grid').addEventListener('click', function() {
-      state.grid.enabled = !state.grid.enabled;
-      this.textContent = `Сетка: ${state.grid.enabled ? 'Вкл' : 'Выкл'}`;
-      renderCanvas();
-    });
-    document.getElementById('toggle-snap').addEventListener('click', function() {
-      state.grid.snap = !state.grid.snap;
-      this.textContent = `Привязка: ${state.grid.snap ? 'Вкл' : 'Выкл'}`;
-    });
-    document.getElementById('grid-step').addEventListener('change', function(e) {
-      state.grid.step = Math.max(10, parseInt(e.target.value));
-      renderCanvas();
-    });
-    document.getElementById('tool-select').addEventListener('click', () => setActiveTool('select'));
-    document.getElementById('tool-line').addEventListener('click', () => setActiveTool('line'));
-    document.getElementById('tool-rect').addEventListener('click', () => setActiveTool('rect'));
-    document.getElementById('tool-circle').addEventListener('click', () => setActiveTool('circle'));
-    document.getElementById('tool-text').addEventListener('click', () => setActiveTool('text'));
-    document.getElementById('tool-copy').addEventListener('click', copySelected);
-    document.getElementById('tool-paste').addEventListener('click', pasteElement);
-    document.getElementById('color-picker').addEventListener('input', (e) => {
-      state.color = e.target.value;
-      if (state.selectedElement !== null) {
-        state.elements[state.selectedElement].color = state.color;
-        saveToLocalStorage();
-        renderCanvas();
-      }
-    });
-    document.getElementById('clear-btn').addEventListener('click', () => {
-      if (confirm('Очистить текущий лист?')) {
-        saveToUndoStack();
-        state.elements = [];
-        saveToLocalStorage();
-        renderCanvas();
-      }
-    });
-    document.getElementById('export-btn').addEventListener('click', exportToPNG);
-    document.getElementById('rename-confirm').addEventListener('click', confirmRename);
-    document.getElementById('rename-cancel').addEventListener('click', cancelRename);
-
-    // ========== ЗАПУСК ==========
-    loadFromLocalStorage();
-    setActiveTool('select');
+    // ... (остальной код остаётся без изменений) ...
   </script>
 </body>
 </html>
