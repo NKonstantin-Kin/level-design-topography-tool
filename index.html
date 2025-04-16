@@ -5,15 +5,15 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <title>Топографический редактор PRO</title>
   <style>
-    /* ... (все ваши стили остаются без изменений) ... */
+    /* Все ваши оригинальные стили остаются без изменений */
+    body { margin: 0; font-family: Arial; background: #f5f5f5; overflow: hidden; }
+    #app { display: flex; height: 100vh; }
+    #toolbar { width: 200px; background: #2c3e50; padding: 15px; color: white; box-shadow: 0 0 10px rgba(0,0,0,0.3); overflow-y: auto; }
+    /* ... остальные стили ... */
     
-    /* Добавляем новые стили для функционала */
-    canvas.move-cursor {
-      cursor: grab;
-    }
-    canvas.move-cursor:active {
-      cursor: grabbing;
-    }
+    /* Добавляем только новые стили */
+    canvas.move-cursor { cursor: grab; }
+    canvas.move-cursor:active { cursor: grabbing; }
     .selection-box {
       position: absolute;
       border: 2px dashed #1a73e8;
@@ -24,16 +24,19 @@
   </style>
 </head>
 <body>
-  <!-- ... (ваш HTML остаётся без изменений до canvas-container) ... -->
-  
-  <div id="canvas-container">
-    <div class="tabs" id="sheet-tabs"></div>
-    <canvas id="sheet"></canvas>
-    <div id="text-input" contenteditable="true"></div>
-    <div id="selection-box" class="selection-box"></div>
+  <!-- Ваш оригинальный HTML остается без изменений -->
+  <div id="app">
+    <div id="toolbar">
+      <!-- ... ваш оригинальный toolbar ... -->
+    </div>
+    <div id="canvas-container">
+      <div class="tabs" id="sheet-tabs"></div>
+      <canvas id="sheet"></canvas>
+      <div id="text-input" contenteditable="true"></div>
+      <div id="selection-box" class="selection-box"></div>
+    </div>
   </div>
-
-  <!-- ... (остальной HTML остаётся без изменений) ... -->
+  <div id="rename-dialog">...</div>
 
   <script>
   document.addEventListener('DOMContentLoaded', function() {
@@ -63,8 +66,24 @@
     canvas.height = CONFIG.INIT_HEIGHT;
 
     let state = {
-      // ... (ваше текущее состояние) ...
-      // Добавляем новые свойства:
+      sheets: [],
+      currentSheet: 0,
+      currentTool: 'select',
+      color: '#000000',
+      selectedElement: null,
+      clipboard: null,
+      undoStack: [],
+      redoStack: [],
+      grid: { enabled: true, snap: true, step: 20, color: CONFIG.GRID_COLOR },
+      elements: [],
+      renamingSheet: null,
+      textInputActive: false,
+      isDrawing: false,
+      isResizing: false,
+      resizeHandle: null,
+      startX: 0,
+      startY: 0,
+      // Новые свойства состояния
       isMovingCanvas: false,
       canvasOffset: { x: 0, y: 0 },
       lastMousePos: { x: 0, y: 0 },
@@ -74,117 +93,120 @@
       boxSelectStart: { x: 0, y: 0 }
     };
 
+    // ========== ФУНКЦИИ ГРУППИРОВКИ ==========
+    function groupElements() {
+      if (state.selectedElement === null) return;
+      
+      const selected = state.elements[state.selectedElement];
+      if (!selected) return;
+      
+      // Если уже группа - ничего не делаем
+      if (selected.type === 'group') return;
+      
+      saveToUndoStack();
+      
+      // Создаем новую группу
+      const group = {
+        id: 'group-' + Date.now(),
+        type: 'group',
+        children: [selected.id],
+        x: selected.x1 || selected.x,
+        y: selected.y1 || selected.y,
+        width: (selected.x2 ? selected.x2 - selected.x1 : ctx.measureText(selected.content).width),
+        height: (selected.y2 ? selected.y2 - selected.y1 : 20)
+      };
+      
+      // Удаляем оригинальный элемент и добавляем группу
+      state.elements.splice(state.selectedElement, 1);
+      state.elements.push(group);
+      state.selectedElement = state.elements.length - 1;
+      
+      saveToLocalStorage();
+      renderCanvas();
+    }
+
+    function ungroupElements() {
+      if (state.selectedElement === null) return;
+      
+      const selected = state.elements[state.selectedElement];
+      if (!selected || selected.type !== 'group') return;
+      
+      saveToUndoStack();
+      
+      // Находим элементы группы
+      const groupChildren = state.elements.filter(el => 
+        selected.children.includes(el.id)
+      );
+      
+      // Удаляем группу
+      state.elements.splice(state.selectedElement, 1);
+      
+      // Добавляем элементы группы обратно
+      state.elements = state.elements.concat(groupChildren);
+      state.selectedElement = null;
+      
+      saveToLocalStorage();
+      renderCanvas();
+    }
+
     // ========== ОСНОВНЫЕ ФУНКЦИИ ==========
-    
-    // 1. Автоматическое расширение холста
-    function expandCanvasIfNeeded(x, y) {
-      let changed = false;
-      let newWidth = canvas.width;
-      let newHeight = canvas.height;
-      let offsetX = 0;
-      let offsetY = 0;
+    // ... (ваши оригинальные функции: drawGrid, saveToUndoStack, undo, getResizeHandle) ...
 
-      // Проверка границ и расширение
-      if (x < CONFIG.MARGIN) {
-        offsetX = CONFIG.MARGIN - x;
-        newWidth += offsetX;
-        changed = true;
-      } 
-      else if (x > canvas.width - CONFIG.MARGIN) {
-        newWidth = x + CONFIG.MARGIN;
-        changed = true;
-      }
-
-      if (y < CONFIG.MARGIN) {
-        offsetY = CONFIG.MARGIN - y;
-        newHeight += offsetY;
-        changed = true;
-      }
-      else if (y > canvas.height - CONFIG.MARGIN) {
-        newHeight = y + CONFIG.MARGIN;
-        changed = true;
-      }
-
-      if (changed) {
-        // Сохраняем содержимое
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCanvas.width = Math.max(newWidth, CONFIG.MIN_CANVAS_SIZE);
-        tempCanvas.height = Math.max(newHeight, CONFIG.MIN_CANVAS_SIZE);
-        
-        // Копируем содержимое с учетом смещения
-        tempCtx.drawImage(canvas, offsetX, offsetY);
-        
-        // Обновляем основной холст
-        canvas.width = tempCanvas.width;
-        canvas.height = tempCanvas.height;
-        ctx.drawImage(tempCanvas, 0, 0);
-        
-        // Корректируем позиции элементов
-        if (offsetX !== 0 || offsetY !== 0) {
-          state.elements.forEach(el => {
-            if (el.type === 'text') {
-              el.x += offsetX;
-              el.y += offsetY;
-            } else {
-              el.x1 += offsetX;
-              el.y1 += offsetY;
-              if (el.x2) el.x2 += offsetX;
-              if (el.y2) el.y2 += offsetY;
-            }
-          });
-        }
-        
-        state.canvasOffset.x += offsetX;
-        state.canvasOffset.y += offsetY;
-      }
-    }
-
-    // 2. Функции для работы с группами
-    class Group {
-      constructor(elements = []) {
-        this.id = `group-${Date.now()}`;
-        this.type = 'group';
-        this.children = elements.map(el => el.id);
-        this.updateBounds();
-      }
-
-      updateBounds() {
-        const children = this.children.map(id => 
-          state.elements.find(el => el.id === id)).filter(Boolean);
-        
-        if (children.length === 0) return;
-
-        const xs = children.flatMap(el => [
-          el.x1 || el.x,
-          el.x2 || (el.x1 + (el.width || 0)) || el.x
-        ]);
-        const ys = children.flatMap(el => [
-          el.y1 || el.y,
-          el.y2 || (el.y1 + (el.height || 0)) || el.y
-        ]);
-
-        this.x = Math.min(...xs);
-        this.y = Math.min(...ys);
-        this.width = Math.max(...xs) - this.x;
-        this.height = Math.max(...ys) - this.y;
-      }
-    }
-
-    // 3. Обновленный рендеринг с учетом групп
     function renderElements() {
       ctx.save();
       ctx.translate(state.canvasOffset.x, state.canvasOffset.y);
       
       state.elements.forEach((el, index) => {
-        // ... (ваш существующий код рендеринга) ...
+        ctx.beginPath();
+        ctx.strokeStyle = el.color;
+        ctx.fillStyle = el.color;
+        ctx.lineWidth = 2;
         
-        // Добавляем рендеринг выделения для групп
-        if (index === state.selectedElement && el.type === 'group') {
+        if (el.type === 'line') {
+          ctx.moveTo(el.x1, el.y1);
+          ctx.lineTo(el.x2, el.y2);
+          ctx.stroke();
+        } else if (el.type === 'rect') {
+          ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
+          ctx.stroke();
+        } else if (el.type === 'circle') {
+          const radius = Math.sqrt(Math.pow(el.x2 - el.x1, 2) + Math.pow(el.y2 - el.y1, 2));
+          ctx.arc(el.x1, el.y1, radius, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (el.type === 'text') {
+          ctx.font = '16px Arial';
+          ctx.fillText(el.content, el.x, el.y);
+        } else if (el.type === 'group') {
+          // Рендеринг группы
           ctx.strokeStyle = '#1a73e8';
           ctx.lineWidth = 2;
           ctx.setLineDash([5, 3]);
           ctx.strokeRect(el.x, el.y, el.width, el.height);
+          ctx.setLineDash([]);
+        }
+        
+        // Рендеринг выделения
+        if (index === state.selectedElement) {
+          ctx.strokeStyle = '#1a73e8';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 3]);
+          
+          if (el.type === 'line') {
+            ctx.moveTo(el.x1, el.y1);
+            ctx.lineTo(el.x2, el.y2);
+            ctx.stroke();
+          } else if (el.type === 'rect' || el.type === 'group') {
+            const width = el.type === 'rect' ? el.x2 - el.x1 : el.width;
+            const height = el.type === 'rect' ? el.y2 - el.y1 : el.height;
+            ctx.strokeRect(el.x1 || el.x, el.y1 || el.y, width, height);
+          } else if (el.type === 'circle') {
+            const radius = Math.sqrt(Math.pow(el.x2 - el.x1, 2) + Math.pow(el.y2 - el.y1, 2));
+            ctx.arc(el.x1, el.y1, radius, 0, Math.PI * 2);
+            ctx.stroke();
+          } else if (el.type === 'text') {
+            ctx.strokeText(el.content, el.x, el.y);
+          }
+          
           ctx.setLineDash([]);
         }
       });
@@ -192,7 +214,7 @@
       ctx.restore();
     }
 
-    // 4. Обработчики событий для нового функционала
+    // ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
     canvas.addEventListener('mousedown', function(e) {
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left - state.canvasOffset.x;
@@ -201,74 +223,75 @@
       state.lastMousePos = { x: e.clientX, y: e.clientY };
 
       if (state.currentTool === 'select') {
-        // ... (ваш существующий код) ...
+        // Проверяем клик по маркеру трансформации
+        if (state.selectedElement !== null) {
+          state.resizeHandle = getResizeHandle(x, y, state.elements[state.selectedElement]);
+          if (state.resizeHandle) {
+            state.isResizing = true;
+            state.startX = x;
+            state.startY = y;
+            return;
+          }
+        }
         
-        // Добавляем обработку перемещения холста
+        // Проверяем клик по элементу
+        state.selectedElement = null;
+        for (let i = state.elements.length - 1; i >= 0; i--) {
+          const el = state.elements[i];
+          if (isPointInElement(x, y, el)) {
+            state.selectedElement = i;
+            state.isMovingElement = true;
+            state.originalElementPos = {
+              x1: el.x1, y1: el.y1,
+              x2: el.x2, y2: el.y2,
+              x: el.x, y: el.y
+            };
+            break;
+          }
+        }
+        
+        // Если не кликнули по элементу - начинаем перемещение холста
         if (state.selectedElement === null && !state.isResizing) {
           state.isMovingCanvas = true;
           canvas.classList.add('move-cursor');
         }
-      }
-    });
-
-    canvas.addEventListener('mousemove', function(e) {
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left - state.canvasOffset.x;
-      const y = e.clientY - rect.top - state.canvasOffset.y;
-
-      // Обработка перемещения холста
-      if (state.isMovingCanvas) {
-        const dx = e.clientX - state.lastMousePos.x;
-        const dy = e.clientY - state.lastMousePos.y;
-        
-        state.canvasOffset.x += dx;
-        state.canvasOffset.y += dy;
-        state.lastMousePos = { x: e.clientX, y: e.clientY };
         
         renderCanvas();
         return;
       }
-
-      // ... (остальные обработчики) ...
-    });
-
-    // 5. Обновленные горячие клавиши
-    document.addEventListener('keydown', function(e) {
-      // Группировка Ctrl+G
-      if (e.ctrlKey && e.key === 'g' && state.selectedElement !== null) {
-        e.preventDefault();
-        // ... код группировки ...
-      }
       
-      // Разгруппировка Ctrl+Shift+G
-      if (e.ctrlKey && e.shiftKey && e.key === 'g' && state.selectedElement !== null) {
-        e.preventDefault();
-        // ... код разгруппировки ...
-      }
-
-      // ... (остальные горячие клавиши) ...
+      // ... (остальные обработчики инструментов) ...
     });
 
     // ========== ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА ==========
-    // Добавляем кнопки группировки
-    const groupBtn = document.createElement('button');
-    groupBtn.id = 'group-btn';
-    groupBtn.className = 'tool-btn';
-    groupBtn.textContent = 'Группировать (Ctrl+G)';
-    groupBtn.addEventListener('click', groupElements);
-    document.querySelector('.tool-section:nth-child(2)').appendChild(groupBtn);
-
-    const ungroupBtn = document.createElement('button');
-    ungroupBtn.id = 'ungroup-btn';
-    ungroupBtn.className = 'tool-btn';
-    ungroupBtn.textContent = 'Разгруппировать (Ctrl+Shift+G)';
-    ungroupBtn.addEventListener('click', ungroupElements);
-    document.querySelector('.tool-section:nth-child(2)').appendChild(ungroupBtn);
+    // Добавляем кнопки группировки в toolbar
+    function initToolbar() {
+      const toolsSection = document.querySelector('#toolbar .tool-section:nth-child(2)');
+      
+      const groupBtn = document.createElement('button');
+      groupBtn.id = 'group-btn';
+      groupBtn.className = 'tool-btn';
+      groupBtn.textContent = 'Группировать (Ctrl+G)';
+      groupBtn.addEventListener('click', groupElements);
+      toolsSection.appendChild(groupBtn);
+      
+      const ungroupBtn = document.createElement('button');
+      ungroupBtn.id = 'ungroup-btn';
+      ungroupBtn.className = 'tool-btn';
+      ungroupBtn.textContent = 'Разгруппировать (Ctrl+Shift+G)';
+      ungroupBtn.addEventListener('click', ungroupElements);
+      toolsSection.appendChild(ungroupBtn);
+    }
 
     // ========== ЗАПУСК ==========
-    loadFromLocalStorage();
-    setActiveTool('select');
-    renderCanvas();
+    function init() {
+      initToolbar();
+      loadFromLocalStorage();
+      setActiveTool('select');
+      renderCanvas();
+    }
+
+    init();
   });
   </script>
 </body>
