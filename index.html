@@ -5,29 +5,76 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <title>Топографический редактор PRO</title>
   <style>
-    /* Все ваши оригинальные стили остаются без изменений */
     body { margin: 0; font-family: Arial; background: #f5f5f5; overflow: hidden; }
     #app { display: flex; height: 100vh; }
     #toolbar { width: 200px; background: #2c3e50; padding: 15px; color: white; box-shadow: 0 0 10px rgba(0,0,0,0.3); overflow-y: auto; }
-    /* ... остальные стили ... */
-    
-    /* Добавляем только новые стили */
+    .tool-section { margin-bottom: 20px; border-bottom: 1px solid #34495e; padding-bottom: 15px; }
+    .tool-section h3 { color: #1abc9c; margin-top: 0; text-align: center; }
+    .tool-btn { display: block; margin: 10px 0; padding: 10px; width: 100%; background: #34495e; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; text-align: left; }
+    .tool-btn:hover { background: #3d5166; transform: translateY(-2px); }
+    .tool-btn.active { background: #1abc9c; font-weight: bold; }
+    #canvas-container { flex: 1; position: relative; overflow: auto; background: #ecf0f1; }
+    canvas { display: block; background: white; box-shadow: 0 0 15px rgba(0,0,0,0.1); margin: 20px auto; }
+    .tabs { display: flex; background: #34495e; padding: 8px 8px 0; flex-wrap: wrap; }
+    .tab { padding: 8px 16px; margin: 0 4px 4px 0; background: #2c3e50; border-radius: 4px 4px 0 0; cursor: pointer; position: relative; color: white; transition: all 0.2s; }
+    .tab:hover { background: #3d5166; }
+    .tab.active { background: #1abc9c; font-weight: bold; }
+    .tab-close { position: absolute; right: 5px; top: 5px; font-size: 12px; color: #e74c3c; background: white; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; line-height: 1; }
+    .tab-edit { position: absolute; right: 25px; top: 5px; font-size: 12px; color: #3498db; }
+    #text-input { position: absolute; border: 1px dashed #000; padding: 4px; display: none; background: white; z-index: 10; min-width: 100px; font-family: Arial; font-size: 16px; }
+    #rename-dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; border: 1px solid #ccc; box-shadow: 0 0 20px rgba(0,0,0,0.2); z-index: 100; display: none; }
+    #rename-dialog h3 { margin-top: 0; color: #2c3e50; }
+    #rename-dialog input { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; }
+    #rename-dialog button { padding: 8px 15px; margin-right: 10px; border: none; border-radius: 4px; cursor: pointer; }
+    #rename-confirm { background: #1abc9c; color: white; }
+    #rename-cancel { background: #e74c3c; color: white; }
+    .grid-controls { display: flex; flex-direction: column; gap: 10px; }
+    .grid-controls label { display: flex; justify-content: space-between; align-items: center; color: white; }
+    .grid-controls input { width: 60px; padding: 5px; border-radius: 4px; border: 1px solid #ddd; }
+    #color-picker { width: 100%; height: 40px; margin: 10px 0; cursor: pointer; border: none; border-radius: 4px; }
+    .resize-handle { position: absolute; width: 8px; height: 8px; background: #1a73e8; border-radius: 50%; transform: translate(-50%, -50%); cursor: nwse-resize; z-index: 10; }
     canvas.move-cursor { cursor: grab; }
     canvas.move-cursor:active { cursor: grabbing; }
-    .selection-box {
-      position: absolute;
-      border: 2px dashed #1a73e8;
-      background: rgba(26, 115, 232, 0.1);
-      pointer-events: none;
-      display: none;
-    }
+    .selection-box { position: absolute; border: 2px dashed #1a73e8; background: rgba(26, 115, 232, 0.1); pointer-events: none; display: none; }
   </style>
 </head>
 <body>
-  <!-- Ваш оригинальный HTML остается без изменений -->
   <div id="app">
     <div id="toolbar">
-      <!-- ... ваш оригинальный toolbar ... -->
+      <div class="tool-section">
+        <h3>Листы</h3>
+        <button id="new-sheet" class="tool-btn">+ Новый лист</button>
+      </div>
+      <div class="tool-section">
+        <h3>Инструменты</h3>
+        <button id="tool-select" class="tool-btn active">🖱️ Выделение</button>
+        <button id="tool-line" class="tool-btn">✏️ Линия</button>
+        <button id="tool-rect" class="tool-btn">⬜ Прямоугольник</button>
+        <button id="tool-circle" class="tool-btn">🔵 Круг</button>
+        <button id="tool-text" class="tool-btn">🔤 Текст</button>
+        <button id="tool-copy" class="tool-btn">⎘ Копировать (Ctrl+C)</button>
+        <button id="tool-paste" class="tool-btn">⎙ Вставить (Ctrl+V)</button>
+        <!-- Кнопки группировки будут добавлены через JS -->
+      </div>
+      <div class="tool-section">
+        <h3>Свойства</h3>
+        <input type="color" id="color-picker" value="#000000">
+      </div>
+      <div class="tool-section">
+        <h3>Сетка</h3>
+        <div class="grid-controls">
+          <button id="toggle-grid" class="tool-btn">Сетка: Вкл</button>
+          <button id="toggle-snap" class="tool-btn">Привязка: Вкл</button>
+          <label>
+            Шаг сетки:
+            <input type="number" id="grid-step" value="20" min="10">
+          </label>
+        </div>
+      </div>
+      <div class="tool-section">
+        <button id="clear-btn" class="tool-btn">❌ Очистить лист</button>
+        <button id="export-btn" class="tool-btn">💾 Экспорт PNG</button>
+      </div>
     </div>
     <div id="canvas-container">
       <div class="tabs" id="sheet-tabs"></div>
@@ -36,7 +83,13 @@
       <div id="selection-box" class="selection-box"></div>
     </div>
   </div>
-  <div id="rename-dialog">...</div>
+
+  <div id="rename-dialog">
+    <h3>Переименовать лист</h3>
+    <input type="text" id="rename-input">
+    <button id="rename-confirm">OK</button>
+    <button id="rename-cancel">Отмена</button>
+  </div>
 
   <script>
   document.addEventListener('DOMContentLoaded', function() {
@@ -49,15 +102,16 @@
       MIN_CANVAS_SIZE: 500
     };
 
-    // ========== ИНИЦИАЛИЗАЦИЯ ==========
+    // ========== ИНИЦИАЛИЗАЦИЯ ЭЛЕМЕНТОВ ==========
     const canvas = document.getElementById('sheet');
     const ctx = canvas.getContext('2d');
     const textInput = document.getElementById('text-input');
     const selectionBox = document.getElementById('selection-box');
-    
+    const toolsSection = document.querySelector('#toolbar .tool-section:nth-child(2)');
+
     // Проверка элементов
-    if (!canvas || !ctx) {
-      console.error('Canvas не найден или не поддерживается');
+    if (!canvas || !ctx || !toolsSection) {
+      console.error('Не удалось найти необходимые элементы DOM');
       return;
     }
 
@@ -65,6 +119,7 @@
     canvas.width = CONFIG.INIT_WIDTH;
     canvas.height = CONFIG.INIT_HEIGHT;
 
+    // ========== СОСТОЯНИЕ ПРИЛОЖЕНИЯ ==========
     let state = {
       sheets: [],
       currentSheet: 0,
@@ -83,7 +138,6 @@
       resizeHandle: null,
       startX: 0,
       startY: 0,
-      // Новые свойства состояния
       isMovingCanvas: false,
       canvasOffset: { x: 0, y: 0 },
       lastMousePos: { x: 0, y: 0 },
@@ -93,64 +147,40 @@
       boxSelectStart: { x: 0, y: 0 }
     };
 
-    // ========== ФУНКЦИИ ГРУППИРОВКИ ==========
-    function groupElements() {
-      if (state.selectedElement === null) return;
-      
-      const selected = state.elements[state.selectedElement];
-      if (!selected) return;
-      
-      // Если уже группа - ничего не делаем
-      if (selected.type === 'group') return;
-      
-      saveToUndoStack();
-      
-      // Создаем новую группу
-      const group = {
-        id: 'group-' + Date.now(),
-        type: 'group',
-        children: [selected.id],
-        x: selected.x1 || selected.x,
-        y: selected.y1 || selected.y,
-        width: (selected.x2 ? selected.x2 - selected.x1 : ctx.measureText(selected.content).width),
-        height: (selected.y2 ? selected.y2 - selected.y1 : 20)
-      };
-      
-      // Удаляем оригинальный элемент и добавляем группу
-      state.elements.splice(state.selectedElement, 1);
-      state.elements.push(group);
-      state.selectedElement = state.elements.length - 1;
-      
-      saveToLocalStorage();
-      renderCanvas();
-    }
-
-    function ungroupElements() {
-      if (state.selectedElement === null) return;
-      
-      const selected = state.elements[state.selectedElement];
-      if (!selected || selected.type !== 'group') return;
-      
-      saveToUndoStack();
-      
-      // Находим элементы группы
-      const groupChildren = state.elements.filter(el => 
-        selected.children.includes(el.id)
-      );
-      
-      // Удаляем группу
-      state.elements.splice(state.selectedElement, 1);
-      
-      // Добавляем элементы группы обратно
-      state.elements = state.elements.concat(groupChildren);
-      state.selectedElement = null;
-      
-      saveToLocalStorage();
-      renderCanvas();
-    }
-
     // ========== ОСНОВНЫЕ ФУНКЦИИ ==========
-    // ... (ваши оригинальные функции: drawGrid, saveToUndoStack, undo, getResizeHandle) ...
+    function drawGrid() {
+      if (!state.grid.enabled) return;
+      
+      ctx.save();
+      ctx.translate(state.canvasOffset.x, state.canvasOffset.y);
+      
+      ctx.strokeStyle = state.grid.color;
+      ctx.lineWidth = 1;
+      
+      // Вертикальные линии
+      for (let x = 0; x <= canvas.width; x += state.grid.step) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      
+      // Горизонтальные линии
+      for (let y = 0; y <= canvas.height; y += state.grid.step) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+      
+      ctx.restore();
+    }
+
+    function renderCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGrid();
+      renderElements();
+    }
 
     function renderElements() {
       ctx.save();
@@ -177,7 +207,6 @@
           ctx.font = '16px Arial';
           ctx.fillText(el.content, el.x, el.y);
         } else if (el.type === 'group') {
-          // Рендеринг группы
           ctx.strokeStyle = '#1a73e8';
           ctx.lineWidth = 2;
           ctx.setLineDash([5, 3]);
@@ -185,7 +214,6 @@
           ctx.setLineDash([]);
         }
         
-        // Рендеринг выделения
         if (index === state.selectedElement) {
           ctx.strokeStyle = '#1a73e8';
           ctx.lineWidth = 2;
@@ -214,76 +242,82 @@
       ctx.restore();
     }
 
-    // ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
-    canvas.addEventListener('mousedown', function(e) {
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left - state.canvasOffset.x;
-      const y = e.clientY - rect.top - state.canvasOffset.y;
+    // ========== ФУНКЦИИ ГРУППИРОВКИ ==========
+    function groupElements() {
+      if (state.selectedElement === null) return;
       
-      state.lastMousePos = { x: e.clientX, y: e.clientY };
+      const selected = state.elements[state.selectedElement];
+      if (!selected) return;
+      
+      saveToUndoStack();
+      
+      const group = {
+        id: 'group-' + Date.now(),
+        type: 'group',
+        children: [selected.id],
+        x: selected.x1 || selected.x,
+        y: selected.y1 || selected.y,
+        width: (selected.x2 ? selected.x2 - selected.x1 : ctx.measureText(selected.content).width),
+        height: (selected.y2 ? selected.y2 - selected.y1 : 20),
+        color: selected.color
+      };
+      
+      state.elements.splice(state.selectedElement, 1);
+      state.elements.push(group);
+      state.selectedElement = state.elements.length - 1;
+      
+      saveToLocalStorage();
+      renderCanvas();
+    }
 
-      if (state.currentTool === 'select') {
-        // Проверяем клик по маркеру трансформации
-        if (state.selectedElement !== null) {
-          state.resizeHandle = getResizeHandle(x, y, state.elements[state.selectedElement]);
-          if (state.resizeHandle) {
-            state.isResizing = true;
-            state.startX = x;
-            state.startY = y;
-            return;
-          }
-        }
-        
-        // Проверяем клик по элементу
-        state.selectedElement = null;
-        for (let i = state.elements.length - 1; i >= 0; i--) {
-          const el = state.elements[i];
-          if (isPointInElement(x, y, el)) {
-            state.selectedElement = i;
-            state.isMovingElement = true;
-            state.originalElementPos = {
-              x1: el.x1, y1: el.y1,
-              x2: el.x2, y2: el.y2,
-              x: el.x, y: el.y
-            };
-            break;
-          }
-        }
-        
-        // Если не кликнули по элементу - начинаем перемещение холста
-        if (state.selectedElement === null && !state.isResizing) {
-          state.isMovingCanvas = true;
-          canvas.classList.add('move-cursor');
-        }
-        
-        renderCanvas();
-        return;
-      }
+    function ungroupElements() {
+      if (state.selectedElement === null) return;
       
-      // ... (остальные обработчики инструментов) ...
-    });
+      const selected = state.elements[state.selectedElement];
+      if (!selected || selected.type !== 'group') return;
+      
+      saveToUndoStack();
+      
+      const groupChildren = state.elements.filter(el => 
+        selected.children.includes(el.id)
+      );
+      
+      state.elements.splice(state.selectedElement, 1);
+      state.elements = state.elements.concat(groupChildren);
+      state.selectedElement = null;
+      
+      saveToLocalStorage();
+      renderCanvas();
+    }
 
     // ========== ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА ==========
-    // Добавляем кнопки группировки в toolbar
     function initToolbar() {
-      const toolsSection = document.querySelector('#toolbar .tool-section:nth-child(2)');
-      
+      // Добавляем кнопки группировки
       const groupBtn = document.createElement('button');
       groupBtn.id = 'group-btn';
       groupBtn.className = 'tool-btn';
       groupBtn.textContent = 'Группировать (Ctrl+G)';
       groupBtn.addEventListener('click', groupElements);
       toolsSection.appendChild(groupBtn);
-      
+
       const ungroupBtn = document.createElement('button');
       ungroupBtn.id = 'ungroup-btn';
       ungroupBtn.className = 'tool-btn';
       ungroupBtn.textContent = 'Разгруппировать (Ctrl+Shift+G)';
       ungroupBtn.addEventListener('click', ungroupElements);
       toolsSection.appendChild(ungroupBtn);
+
+      // Инициализация остальных элементов интерфейса
+      document.getElementById('new-sheet').addEventListener('click', createSheet);
+      document.getElementById('toggle-grid').addEventListener('click', function() {
+        state.grid.enabled = !state.grid.enabled;
+        this.textContent = `Сетка: ${state.grid.enabled ? 'Вкл' : 'Выкл'}`;
+        renderCanvas();
+      });
+      // ... (остальные обработчики интерфейса)
     }
 
-    // ========== ЗАПУСК ==========
+    // ========== ЗАПУСК ПРИЛОЖЕНИЯ ==========
     function init() {
       initToolbar();
       loadFromLocalStorage();
