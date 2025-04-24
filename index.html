@@ -4,34 +4,203 @@
     <meta charset="UTF-8">
     <title>Профессиональный топографический редактор</title>
     <style>
-        /* ... (полный CSS из предыдущего ответа без изменений) ... */
+        :root {
+            --primary-color: #2196F3;
+            --hover-color: #1976D2;
+            --danger-color: #f44336;
+            --background: #f8f9fa;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--background);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .toolbar {
+            padding: 12px;
+            background: #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            background: #e3f2fd;
+            border-radius: 6px;
+            padding: 4px;
+        }
+
+        .tabs button {
+            background: none;
+            color: #1976D2;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .tabs button.selected {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: var(--hover-color);
+        }
+
+        button.danger {
+            background: var(--danger-color);
+        }
+
+        button.danger:hover {
+            background: #d32f2f;
+        }
+
+        canvas {
+            flex: 1;
+            border: 1px solid #e0e0e0;
+            background: white;
+            touch-action: none;
+            margin: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .grid-settings {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: var(--background);
+            border-radius: 6px;
+        }
+
+        .status-bar {
+            padding: 8px 16px;
+            background: white;
+            border-top: 1px solid #eee;
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .tool-group {
+            display: flex;
+            gap: 6px;
+            padding: 4px;
+            background: var(--background);
+            border-radius: 6px;
+        }
+
+        svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        input[type="number"] {
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 70px;
+        }
     </style>
 </head>
 <body>
-    <!-- ... (полный HTML из предыдущего ответа без изменений) ... -->
+    <div class="toolbar">
+        <div class="tabs" id="tabContainer">
+            <button onclick="window.editor.switchTab(0)" class="selected">Слой 1</button>
+            <button onclick="window.editor.switchTab(1)">Слой 2</button>
+            <button onclick="window.editor.addTab()" title="Добавить слой">+</button>
+        </div>
+
+        <div class="tool-group">
+            <button id="selectTool" class="selected" title="Выделение (V)">
+                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2M8,13V15H16V13H8M8,16V18H13V16H8Z"/></svg>
+                Выбрать
+            </button>
+            <button id="lineTool" title="Линия (L)">
+                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M15,3V7.59L7.59,15H3V21H9V16.42L16.42,9H21V3M17,5H19V7H17M5,17H7V19H5"/></svg>
+                Линия
+            </button>
+            <button id="rectTool" title="Прямоугольник (R)">
+                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M2,4H8V6H4V20H18V16H20V22H2V4M8,8H16V10H8V8M20,2V6H18V14H20V16H16V14H18V8H12V10H14V12H8V14H10V16H8V18H10V20H12V18H16V20H18V16H20V18H22V2H20Z"/></svg>
+                Прямоугольник
+            </button>
+            <button id="circleTool" title="Круг (C)">
+                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>
+                Круг
+            </button>
+        </div>
+
+        <div class="tool-group">
+            <button onclick="window.editor.deleteSelected()" class="danger" title="Удалить (Del)">
+                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/></svg>
+                Удалить
+            </button>
+            <button onclick="window.editor.groupSelected()" title="Группировать (Ctrl+G)">
+                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M17,13H13V17H11V13H7V11H11V7H13V11H17M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>
+                Группа
+            </button>
+            <button onclick="window.editor.ungroupSelected()" title="Разгруппировать (Ctrl+Shift+G)">
+                <svg viewBox="0 0 24 24"><path fill="currentColor" d="M2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2A10,10 0 0,0 2,12M16,15V13H8V15H16Z"/></svg>
+                Разгруппировать
+            </button>
+        </div>
+
+        <div class="grid-settings">
+            <label>
+                <input type="checkbox" id="gridToggle" checked>
+                Сетка
+            </label>
+            <input type="number" id="gridSize" value="20" min="1" max="100">
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <div class="status-bar">
+        <span id="cursorPos">X: 0, Y: 0</span>
+        <span id="selectedCount">Выделено: 0</span>
+        <span id="zoomLevel">Масштаб: 100%</span>
+    </div>
 
     <script>
-    "use strict";
     class TopographyEditor {
         constructor() {
             this.canvas = document.getElementById('canvas');
             this.ctx = this.canvas.getContext('2d');
-            this.activeTool = 'select';
-            this.currentElement = null;
-            this.isDrawing = false;
-            this.startX = 0;
-            this.startY = 0;
-            
+            this.resizeCanvas();
+            this.initState();
+            this.initEventListeners();
+            this.draw();
+        }
+
+        initState() {
             this.state = {
-                tabs: [{ 
-                    name: "Слой 1", 
-                    elements: [], 
-                    id: this.generateId() 
-                }],
+                tabs: [this.createNewTab('Слой 1')],
                 currentTabId: null,
                 selected: new Set(),
-                history: [],
-                future: [],
                 canvasOffset: { x: 0, y: 0 },
                 scale: 1,
                 grid: {
@@ -41,14 +210,16 @@
                 }
             };
             this.state.currentTabId = this.state.tabs[0].id;
-
-            this.initEventListeners();
-            this.resizeCanvas();
-            this.draw();
         }
 
-        generateId() {
-            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        createNewTab(name) {
+            return {
+                id: Date.now().toString(36),
+                name,
+                elements: [],
+                visible: true,
+                locked: false
+            };
         }
 
         initEventListeners() {
@@ -58,40 +229,157 @@
             this.canvas.addEventListener('mouseup', () => this.handleMouseUp());
             this.canvas.addEventListener('wheel', e => this.handleWheel(e), { passive: false });
 
-            // Tool buttons
-            document.getElementById('selectTool').addEventListener('click', () => this.setTool('select'));
-            document.getElementById('lineTool').addEventListener('click', () => this.setTool('line'));
-            document.getElementById('rectTool').addEventListener('click', () => this.setTool('rect'));
-            document.getElementById('circleTool').addEventListener('click', () => this.setTool('circle'));
-
-            // Global events
-            window.addEventListener('keydown', e => this.handleKeyDown(e));
-            window.addEventListener('resize', () => this.resizeCanvas());
+            // Tools
+            document.getElementById('selectTool').addEventListener('click', () => this.setActiveTool('select'));
+            document.getElementById('lineTool').addEventListener('click', () => this.setActiveTool('line'));
+            document.getElementById('rectTool').addEventListener('click', () => this.setActiveTool('rect'));
+            document.getElementById('circleTool').addEventListener('click', () => this.setActiveTool('circle'));
 
             // Grid controls
             document.getElementById('gridToggle').addEventListener('change', e => {
                 this.state.grid.visible = e.target.checked;
                 this.draw();
             });
-            
+
             document.getElementById('gridSize').addEventListener('change', e => {
                 this.state.grid.size = parseInt(e.target.value);
                 this.draw();
             });
+
+            // Window resize
+            window.addEventListener('resize', () => this.resizeCanvas());
         }
 
-        // ... (полная реализация всех методов класса) ...
-
-        get currentTab() {
-            return this.state.tabs.find(t => t.id === this.state.currentTabId);
-        }
-
-        setTool(tool) {
-            this.activeTool = tool;
+        setActiveTool(tool) {
             document.querySelectorAll('.tool-group button').forEach(btn => 
                 btn.classList.remove('selected'));
             document.getElementById(`${tool}Tool`).classList.add('selected');
+            this.activeTool = tool;
         }
+
+        resizeCanvas() {
+            const parent = this.canvas.parentElement;
+            this.canvas.width = parent.clientWidth - 40;
+            this.canvas.height = parent.clientHeight - 200;
+            this.draw();
+        }
+
+        handleMouseDown(e) {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left - this.state.canvasOffset.x) / this.state.scale;
+            const y = (e.clientY - rect.top - this.state.canvasOffset.y) / this.state.scale;
+
+            if(this.activeTool === 'select') {
+                this.handleSelection(x, y);
+            } else {
+                this.startDrawing(x, y);
+            }
+        }
+
+        handleSelection(x, y) {
+            const currentTab = this.state.tabs.find(t => t.id === this.state.currentTabId);
+            currentTab.elements.forEach((element, index) => {
+                if(this.isPointInElement(x, y, element)) {
+                    this.state.selected.add(index);
+                }
+            });
+            this.draw();
+        }
+
+        startDrawing(x, y) {
+            this.drawing = true;
+            this.currentElement = {
+                type: this.activeTool,
+                x1: x,
+                y1: y,
+                x2: x,
+                y2: y,
+                color: '#2196F3',
+                strokeWidth: 2
+            };
+        }
+
+        draw() {
+            this.ctx.save();
+            this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.translate(this.state.canvasOffset.x, this.state.canvasOffset.y);
+            this.ctx.scale(this.state.scale, this.state.scale);
+
+            this.drawGrid();
+            this.drawElements();
+            
+            if(this.drawing && this.currentElement) {
+                this.drawPreview();
+            }
+
+            this.ctx.restore();
+        }
+
+        drawGrid() {
+            if(!this.state.grid.visible) return;
+            
+            this.ctx.strokeStyle = '#e0e0e0';
+            this.ctx.lineWidth = 0.5;
+            const size = this.state.grid.size;
+
+            for(let x = 0; x < this.canvas.width; x += size) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(x, 0);
+                this.ctx.lineTo(x, this.canvas.height);
+                this.ctx.stroke();
+            }
+
+            for(let y = 0; y < this.canvas.height; y += size) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, y);
+                this.ctx.lineTo(this.canvas.width, y);
+                this.ctx.stroke();
+            }
+        }
+
+        drawElements() {
+            const currentTab = this.state.tabs.find(t => t.id === this.state.currentTabId);
+            currentTab.elements.forEach((element, index) => {
+                this.ctx.save();
+                this.ctx.strokeStyle = element.color;
+                this.ctx.lineWidth = element.strokeWidth;
+
+                if(this.state.selected.has(index)) {
+                    this.ctx.setLineDash([5, 5]);
+                    this.ctx.strokeStyle = '#f44336';
+                }
+
+                switch(element.type) {
+                    case 'line':
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(element.x1, element.y1);
+                        this.ctx.lineTo(element.x2, element.y2);
+                        this.ctx.stroke();
+                        break;
+                    case 'rect':
+                        this.ctx.strokeRect(
+                            Math.min(element.x1, element.x2),
+                            Math.min(element.y1, element.y2),
+                            Math.abs(element.x2 - element.x1),
+                            Math.abs(element.y2 - element.y1)
+                        );
+                        break;
+                    case 'circle':
+                        const radius = Math.hypot(
+                            element.x2 - element.x1,
+                            element.y2 - element.y1
+                        );
+                        this.ctx.beginPath();
+                        this.ctx.arc(element.x1, element.y1, radius, 0, Math.PI*2);
+                        this.ctx.stroke();
+                        break;
+                }
+                this.ctx.restore();
+            });
+        }
+
+        // Остальные методы класса...
 
         switchTab(index) {
             if(index >= 0 && index < this.state.tabs.length) {
@@ -102,11 +390,7 @@
         }
 
         addTab() {
-            const newTab = {
-                name: `Слой ${this.state.tabs.length + 1}`,
-                elements: [],
-                id: this.generateId()
-            };
+            const newTab = this.createNewTab(`Слой ${this.state.tabs.length + 1}`);
             this.state.tabs.push(newTab);
             this.state.currentTabId = newTab.id;
             this.updateTabButtons();
@@ -124,26 +408,17 @@
         }
 
         deleteSelected() {
-            this.currentTab.elements = this.currentTab.elements
-                .filter((_, i) => !this.state.selected.has(i));
+            const currentTab = this.state.tabs.find(t => t.id === this.state.currentTabId);
+            currentTab.elements = currentTab.elements.filter((_, i) => !this.state.selected.has(i));
             this.state.selected.clear();
             this.draw();
         }
-
-        // ... (остальные методы класса) ...
     }
 
-    // Инициализация и экспорт
+    // Инициализация редактора
     document.addEventListener('DOMContentLoaded', () => {
         window.editor = new TopographyEditor();
     });
-
-    // Глобальные методы
-    window.switchTab = index => window.editor?.switchTab(index);
-    window.addTab = () => window.editor?.addTab();
-    window.deleteSelected = () => window.editor?.deleteSelected();
-    window.groupSelected = () => window.editor?.groupSelected();
-    window.ungroupSelected = () => window.editor?.ungroupSelected();
     </script>
 </body>
 </html>
