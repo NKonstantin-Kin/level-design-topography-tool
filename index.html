@@ -4,124 +4,268 @@
     <meta charset="UTF-8">
     <title>Топографический редактор</title>
     <style>
-        /* Стили остаются без изменений из предыдущего ответа */
-        body { margin: 0; font-family: Arial, sans-serif; }
-        .toolbar { padding: 10px; background: #f0f0f0; }
-        canvas { border: 1px solid #ccc; margin: 20px; }
-        /* ... остальные стили ... */
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .toolbar {
+            padding: 10px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #e3f2fd;
+            border-color: #2196F3;
+        }
+
+        button.selected {
+            background: #2196F3;
+            color: white;
+            border-color: #1976D2;
+        }
+
+        canvas {
+            flex: 1;
+            margin: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            touch-action: none;
+        }
+
+        .status-bar {
+            padding: 8px 16px;
+            background: white;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
     <div class="toolbar">
-        <button id="lineBtn">Линия</button>
-        <button id="rectBtn">Прямоугольник</button>
-        <button id="circleBtn">Круг</button>
+        <button id="selectTool" class="selected">Выделение</button>
+        <button id="lineTool">Линия</button>
+        <button id="rectTool">Прямоугольник</button>
+        <button id="circleTool">Круг</button>
+        <button id="deleteBtn">Удалить</button>
     </div>
+
     <canvas id="canvas"></canvas>
+    <div class="status-bar">
+        <span id="cursorPos">X: 0, Y: 0</span>
+        <span id="selectedInfo">Выделено: 0</span>
+    </div>
 
-    <script>
-    "use strict";
-    
-    class Editor {
-        constructor() {
-            // Отложенная инициализация после проверки элементов
-            if (!document.getElementById('canvas')) {
-                throw new Error('Canvas element not found');
-            }
-            
-            this.canvas = document.getElementById('canvas');
-            this.ctx = this.canvas.getContext('2d');
-            
-            // Инициализация состояния
-            this.state = {
-                elements: [],
-                selected: new Set(),
-                scale: 1,
-                offset: { x: 0, y: 0 }
-            };
-            
-            // Настройка размеров canvas
-            this.resizeCanvas();
-            
-            // Инициализация событий
-            this.initEventListeners();
-        }
+<script>
+"use strict";
+class Editor {
+    constructor() {
+        this.canvas = document.getElementById('canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.tools = ['select', 'line', 'rect', 'circle'];
+        this.state = {
+            elements: [],
+            selected: new Set(),
+            offset: { x: 0, y: 0 },
+            scale: 1,
+            currentTool: 'select',
+            isDragging: false,
+            startPos: { x: 0, y: 0 }
+        };
 
-        resizeCanvas() {
-            this.canvas.width = window.innerWidth - 40;
-            this.canvas.height = window.innerHeight - 100;
-        }
+        this.init();
+    }
 
-        initEventListeners() {
-            window.addEventListener('resize', () => this.resizeCanvas());
-            
-            // Инициализация кнопок только после создания экземпляра
-            document.getElementById('lineBtn').addEventListener('click', () => this.addLine());
-            document.getElementById('rectBtn').addEventListener('click', () => this.addRect());
-            document.getElementById('circleBtn').addEventListener('click', () => this.addCircle());
-        }
+    init() {
+        this.setupCanvas();
+        this.setupEventListeners();
+        this.draw();
+    }
 
-        addLine() {
-            this.state.elements.push({
-                type: 'line',
-                x1: 100, y1: 100,
-                x2: 200, y2: 200,
-                color: '#ff0000'
+    setupCanvas() {
+        this.canvas.width = window.innerWidth - 40;
+        this.canvas.height = window.innerHeight - 100;
+    }
+
+    setupEventListeners() {
+        // Обработчики инструментов
+        this.tools.forEach(tool => {
+            document.getElementById(`${tool}Tool`).addEventListener('click', () => {
+                this.setTool(tool);
             });
-            this.draw();
-        }
+        });
 
-        addRect() {
-            this.state.elements.push({
-                type: 'rect',
-                x: 150, y: 150,
-                width: 100, height: 80,
-                color: '#00ff00'
-            });
-            this.draw();
-        }
+        document.getElementById('deleteBtn').addEventListener('click', () => {
+            this.deleteSelected();
+        });
 
-        addCircle() {
-            this.state.elements.push({
-                type: 'circle',
-                x: 300, y: 200,
-                radius: 50,
-                color: '#0000ff'
-            });
-            this.draw();
-        }
+        // Обработчики canvas
+        this.canvas.addEventListener('mousedown', e => this.handleMouseDown(e));
+        this.canvas.addEventListener('mousemove', e => this.handleMouseMove(e));
+        this.canvas.addEventListener('mouseup', () => this.handleMouseUp());
+        this.canvas.addEventListener('wheel', e => this.handleWheel(e));
 
-        draw() {
-            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-            
-            // Отрисовка элементов
-            this.state.elements.forEach(element => {
-                this.ctx.beginPath();
-                this.ctx.strokeStyle = element.color;
-                
-                switch(element.type) {
-                    case 'line':
-                        this.ctx.moveTo(element.x1, element.y1);
-                        this.ctx.lineTo(element.x2, element.y2);
-                        break;
-                    case 'rect':
-                        this.ctx.strokeRect(element.x, element.y, element.width, element.height);
-                        break;
-                    case 'circle':
-                        this.ctx.arc(element.x, element.y, element.radius, 0, Math.PI * 2);
-                        break;
-                }
-                
-                this.ctx.stroke();
-            });
+        window.addEventListener('resize', () => this.setupCanvas());
+    }
+
+    setTool(tool) {
+        this.state.currentTool = tool;
+        document.querySelectorAll('.toolbar button').forEach(btn => {
+            btn.classList.remove('selected');
+        });
+        document.getElementById(`${tool}Tool`).classList.add('selected');
+    }
+
+    getMousePos(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - rect.left - this.state.offset.x) / this.state.scale,
+            y: (e.clientY - rect.top - this.state.offset.y) / this.state.scale
+        };
+    }
+
+    handleMouseDown(e) {
+        const pos = this.getMousePos(e);
+        this.state.isDragging = true;
+        this.state.startPos = pos;
+
+        if(this.state.currentTool === 'select') {
+            this.handleSelection(pos);
         }
     }
 
-    // Инициализация после полной загрузки страницы
-    window.addEventListener('DOMContentLoaded', () => {
-        window.editor = new Editor();
-        editor.draw();
-    });
-    </script>
+    handleMouseMove(e) {
+        const pos = this.getMousePos(e);
+        this.updateCursorPos(pos);
+
+        if(this.state.isDragging) {
+            if(this.state.currentTool === 'select') {
+                this.state.offset.x += e.movementX;
+                this.state.offset.y += e.movementY;
+                this.draw();
+            } else {
+                this.updateCurrentElement(pos);
+            }
+        }
+    }
+
+    handleMouseUp() {
+        if(this.state.currentTool !== 'select') {
+            this.state.elements.push(this.currentElement);
+            this.currentElement = null;
+        }
+        this.state.isDragging = false;
+        this.draw();
+    }
+
+    handleSelection(pos) {
+        this.state.selected.clear();
+        this.state.elements.forEach((element, index) => {
+            if(this.checkCollision(element, pos)) {
+                this.state.selected.add(index);
+            }
+        });
+        this.updateSelectedInfo();
+        this.draw();
+    }
+
+    checkCollision(element, pos) {
+        switch(element.type) {
+            case 'rect':
+                return pos.x >= element.x && pos.x <= element.x + element.width &&
+                       pos.y >= element.y && pos.y <= element.y + element.height;
+            case 'circle':
+                return Math.hypot(pos.x - element.x, pos.y - element.y) <= element.radius;
+            case 'line':
+                const dx = element.x2 - element.x1;
+                const dy = element.y2 - element.y1;
+                const t = ((pos.x - element.x1) * dx + (pos.y - element.y1) * dy) / (dx*dx + dy*dy);
+                return t >= 0 && t <= 1;
+        }
+        return false;
+    }
+
+    deleteSelected() {
+        this.state.elements = this.state.elements.filter((_, i) => !this.state.selected.has(i));
+        this.state.selected.clear();
+        this.updateSelectedInfo();
+        this.draw();
+    }
+
+    updateCursorPos(pos) {
+        document.getElementById('cursorPos').textContent = 
+            `X: ${Math.round(pos.x)}, Y: ${Math.round(pos.y)}`;
+    }
+
+    updateSelectedInfo() {
+        document.getElementById('selectedInfo').textContent = 
+            `Выделено: ${this.state.selected.size}`;
+    }
+
+    draw() {
+        this.ctx.save();
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.translate(this.state.offset.x, this.state.offset.y);
+        this.ctx.scale(this.state.scale, this.state.scale);
+
+        // Отрисовка элементов
+        this.state.elements.forEach((element, index) => {
+            this.ctx.beginPath();
+            this.ctx.strokeStyle = this.state.selected.has(index) ? '#f44336' : '#2196F3';
+            this.ctx.lineWidth = 2;
+
+            switch(element.type) {
+                case 'line':
+                    this.ctx.moveTo(element.x1, element.y1);
+                    this.ctx.lineTo(element.x2, element.y2);
+                    break;
+                case 'rect':
+                    this.ctx.rect(element.x, element.y, element.width, element.height);
+                    break;
+                case 'circle':
+                    this.ctx.arc(element.x, element.y, element.radius, 0, Math.PI*2);
+                    break;
+            }
+            this.ctx.stroke();
+        });
+
+        this.ctx.restore();
+    }
+
+    handleWheel(e) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        this.state.scale *= delta;
+        this.draw();
+    }
+}
+
+// Инициализация после загрузки страницы
+window.addEventListener('DOMContentLoaded', () => {
+    const editor = new Editor();
+});
+</script>
 </body>
 </html>
