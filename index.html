@@ -1,89 +1,9 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <title>Топографический редактор</title>
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #f0f0f0;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .toolbar {
-            padding: 10px;
-            background: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        button {
-            padding: 8px 16px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: white;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        button:hover {
-            background: #e3f2fd;
-            border-color: #2196F3;
-        }
-
-        button.selected {
-            background: #2196F3;
-            color: white;
-            border-color: #1976D2;
-        }
-
-        canvas {
-            flex: 1;
-            margin: 20px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            background: white;
-            touch-action: none;
-        }
-
-        .status-bar {
-            padding: 8px 16px;
-            background: white;
-            border-top: 1px solid #ddd;
-            display: flex;
-            gap: 20px;
-            font-size: 14px;
-            color: #666;
-        }
-    </style>
-</head>
-<body>
-    <div class="toolbar">
-        <button id="selectTool" class="selected">Выделение</button>
-        <button id="lineTool">Линия</button>
-        <button id="rectTool">Прямоугольник</button>
-        <button id="circleTool">Круг</button>
-        <button id="deleteBtn">Удалить</button>
-    </div>
-
-    <canvas id="canvas"></canvas>
-    <div class="status-bar">
-        <span id="cursorPos">X: 0, Y: 0</span>
-        <span id="selectedInfo">Выделено: 0</span>
-    </div>
-
 <script>
 "use strict";
 class Editor {
     constructor() {
-        this.canvas = document.getElementById('canvas');
-        this.ctx = this.canvas.getContext('2d');
-        this.tools = ['select', 'line', 'rect', 'circle'];
+        // ... остальная часть конструктора без изменений ...
+
         this.state = {
             elements: [],
             selected: new Set(),
@@ -91,55 +11,11 @@ class Editor {
             scale: 1,
             currentTool: 'select',
             isDragging: false,
+            isMovingView: false,
             startPos: { x: 0, y: 0 },
-            currentElement: null
-        };
-
-        this.init();
-    }
-
-    init() {
-        this.setupCanvas();
-        this.setupEventListeners();
-        this.draw();
-    }
-
-    setupCanvas() {
-        this.canvas.width = window.innerWidth - 40;
-        this.canvas.height = window.innerHeight - 100;
-    }
-
-    setupEventListeners() {
-        this.tools.forEach(tool => {
-            document.getElementById(`${tool}Tool`).addEventListener('click', () => {
-                this.setTool(tool);
-            });
-        });
-
-        document.getElementById('deleteBtn').addEventListener('click', () => {
-            this.deleteSelected();
-        });
-
-        this.canvas.addEventListener('mousedown', e => this.handleMouseDown(e));
-        this.canvas.addEventListener('mousemove', e => this.handleMouseMove(e));
-        this.canvas.addEventListener('mouseup', () => this.handleMouseUp());
-        this.canvas.addEventListener('wheel', e => this.handleWheel(e));
-        window.addEventListener('resize', () => this.setupCanvas());
-    }
-
-    setTool(tool) {
-        this.state.currentTool = tool;
-        document.querySelectorAll('.toolbar button').forEach(btn => {
-            btn.classList.remove('selected');
-        });
-        document.getElementById(`${tool}Tool`).classList.add('selected');
-    }
-
-    getMousePos(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        return {
-            x: (e.clientX - rect.left - this.state.offset.x) / this.state.scale,
-            y: (e.clientY - rect.top - this.state.offset.y) / this.state.scale
+            currentElement: null,
+            dragStart: { x: 0, y: 0 },
+            elementStartPositions: []
         };
     }
 
@@ -147,39 +23,33 @@ class Editor {
         const pos = this.getMousePos(e);
         this.state.isDragging = true;
         this.state.startPos = pos;
+        this.state.dragStart = { ...pos };
 
         if(this.state.currentTool !== 'select') {
+            // Инициализация нового элемента
             this.state.currentElement = {
+                id: Date.now(),
                 type: this.state.currentTool,
-                x1: pos.x,
-                y1: pos.y,
-                x2: pos.x,
-                y2: pos.y,
+                x: pos.x,
+                y: pos.y,
+                width: 0,
+                height: 0,
+                radius: 0,
                 color: '#2196F3'
             };
         } else {
-            this.handleSelection(pos);
+            // Проверяем клик по элементу
+            const clickedElement = this.findElementAt(pos);
+            if(clickedElement) {
+                if(!e.shiftKey) this.state.selected.clear();
+                this.state.selected.add(clickedElement.id);
+                this.saveElementStartPositions();
+            } else {
+                this.state.isMovingView = true;
+                this.state.selected.clear();
+            }
+            this.updateSelectedInfo();
         }
-    }
-
-    updateCurrentElement(pos) {
-        if(!this.state.currentElement) return;
-        
-        this.state.currentElement.x2 = pos.x;
-        this.state.currentElement.y2 = pos.y;
-
-        if(this.state.currentElement.type === 'rect') {
-            this.state.currentElement.width = pos.x - this.state.currentElement.x1;
-            this.state.currentElement.height = pos.y - this.state.currentElement.y1;
-        }
-
-        if(this.state.currentElement.type === 'circle') {
-            this.state.currentElement.radius = Math.hypot(
-                pos.x - this.state.currentElement.x1,
-                pos.y - this.state.currentElement.y1
-            );
-        }
-
         this.draw();
     }
 
@@ -189,9 +59,16 @@ class Editor {
 
         if(this.state.isDragging) {
             if(this.state.currentTool === 'select') {
-                this.state.offset.x += e.movementX;
-                this.state.offset.y += e.movementY;
+                if(this.state.isMovingView) {
+                    // Перемещение вида
+                    this.state.offset.x += e.movementX;
+                    this.state.offset.y += e.movementY;
+                } else {
+                    // Перемещение элементов
+                    this.moveSelectedElements(pos);
+                }
             } else {
+                // Рисование нового элемента
                 this.updateCurrentElement(pos);
             }
             this.draw();
@@ -200,33 +77,78 @@ class Editor {
 
     handleMouseUp() {
         if(this.state.currentElement) {
-            this.state.elements.push(this.state.currentElement);
-            this.state.currentElement = null;
+            // Финализация нового элемента
+            this.finalizeCurrentElement();
         }
         this.state.isDragging = false;
+        this.state.isMovingView = false;
         this.draw();
     }
 
-    handleSelection(pos) {
-        this.state.selected.clear();
-        this.state.elements.forEach((element, index) => {
-            if(element && this.checkCollision(element, pos)) {
-                this.state.selected.add(index);
+    // Новые методы
+    findElementAt(pos) {
+        for(const element of this.state.elements) {
+            if(this.checkCollision(element, pos)) {
+                return element;
             }
+        }
+        return null;
+    }
+
+    saveElementStartPositions() {
+        this.state.elementStartPositions = [];
+        for(const element of this.state.elements) {
+            if(this.state.selected.has(element.id)) {
+                this.state.elementStartPositions.push({
+                    id: element.id,
+                    x: element.x,
+                    y: element.y
+                });
+            }
+        }
+    }
+
+    moveSelectedElements(pos) {
+        const deltaX = pos.x - this.state.dragStart.x;
+        const deltaY = pos.y - this.state.dragStart.y;
+        
+        this.state.elements = this.state.elements.map(element => {
+            if(this.state.selected.has(element.id)) {
+                const startPos = this.state.elementStartPositions.find(p => p.id === element.id);
+                return {
+                    ...element,
+                    x: startPos.x + deltaX,
+                    y: startPos.y + deltaY
+                };
+            }
+            return element;
         });
-        this.updateSelectedInfo();
-        this.draw();
+    }
+
+    finalizeCurrentElement() {
+        // Корректируем координаты для отрицательных размеров
+        const el = this.state.currentElement;
+        if(el.type === 'rect') {
+            el.x = Math.min(el.x, el.x + el.width);
+            el.y = Math.min(el.y, el.y + el.height);
+            el.width = Math.abs(el.width);
+            el.height = Math.abs(el.height);
+        }
+        this.state.elements.push(el);
+        this.state.currentElement = null;
     }
 
     checkCollision(element, pos) {
-        if(!element?.type) return false;
+        if(!element) return false;
         
         switch(element.type) {
             case 'rect':
-                return pos.x >= element.x1 && pos.x <= element.x1 + element.width &&
-                       pos.y >= element.y1 && pos.y <= element.y1 + element.height;
+                return pos.x >= element.x && 
+                       pos.x <= element.x + element.width &&
+                       pos.y >= element.y && 
+                       pos.y <= element.y + element.height;
             case 'circle':
-                return Math.hypot(pos.x - element.x1, pos.y - element.y1) <= element.radius;
+                return Math.hypot(pos.x - element.x, pos.y - element.y) <= element.radius;
             case 'line':
                 const dx = element.x2 - element.x1;
                 const dy = element.y2 - element.y1;
@@ -236,99 +158,23 @@ class Editor {
         return false;
     }
 
-    deleteSelected() {
-        this.state.elements = this.state.elements.filter((_, i) => !this.state.selected.has(i));
-        this.state.selected.clear();
-        this.updateSelectedInfo();
-        this.draw();
-    }
-
-    updateCursorPos(pos) {
-        document.getElementById('cursorPos').textContent = 
-            `X: ${Math.round(pos.x)}, Y: ${Math.round(pos.y)}`;
-    }
-
-    updateSelectedInfo() {
-        document.getElementById('selectedInfo').textContent = 
-            `Выделено: ${this.state.selected.size}`;
-    }
-
+    // Обновленный метод рисования
     draw() {
-        this.ctx.save();
-        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.translate(this.state.offset.x, this.state.offset.y);
-        this.ctx.scale(this.state.scale, this.state.scale);
-
-        // Отрисовка элементов
-        this.state.elements.forEach((element, index) => {
-            if(!element?.type) return;
-            
-            this.ctx.beginPath();
-            this.ctx.strokeStyle = this.state.selected.has(index) ? '#f44336' : '#2196F3';
-            this.ctx.lineWidth = 2;
-
-            switch(element.type) {
-                case 'line':
-                    this.ctx.moveTo(element.x1, element.y1);
-                    this.ctx.lineTo(element.x2, element.y2);
-                    break;
-                case 'rect':
-                    this.ctx.rect(element.x1, element.y1, element.width, element.height);
-                    break;
-                case 'circle':
-                    this.ctx.arc(element.x1, element.y1, element.radius, 0, Math.PI*2);
-                    break;
+        // ... остальная часть метода без изменений ...
+        
+        // Рисование выделения
+        this.state.elements.forEach(element => {
+            if(this.state.selected.has(element.id)) {
+                this.ctx.strokeStyle = '#f44336';
+                this.ctx.lineWidth = 2;
+                this.ctx.strokeRect(
+                    element.x - 2, 
+                    element.y - 2, 
+                    element.width + 4, 
+                    element.height + 4
+                );
             }
-            this.ctx.stroke();
         });
-
-        // Отрисовка текущего элемента
-        if(this.state.currentElement) {
-            this.ctx.beginPath();
-            this.ctx.strokeStyle = '#2196F3';
-            this.ctx.lineWidth = 2;
-            
-            switch(this.state.currentElement.type) {
-                case 'line':
-                    this.ctx.moveTo(this.state.currentElement.x1, this.state.currentElement.y1);
-                    this.ctx.lineTo(this.state.currentElement.x2, this.state.currentElement.y2);
-                    break;
-                case 'rect':
-                    this.ctx.rect(
-                        this.state.currentElement.x1,
-                        this.state.currentElement.y1,
-                        this.state.currentElement.width,
-                        this.state.currentElement.height
-                    );
-                    break;
-                case 'circle':
-                    this.ctx.arc(
-                        this.state.currentElement.x1,
-                        this.state.currentElement.y1,
-                        this.state.currentElement.radius,
-                        0,
-                        Math.PI*2
-                    );
-                    break;
-            }
-            this.ctx.stroke();
-        }
-
-        this.ctx.restore();
-    }
-
-    handleWheel(e) {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        this.state.scale *= delta;
-        this.draw();
     }
 }
-
-window.addEventListener('DOMContentLoaded', () => {
-    const editor = new Editor();
-});
 </script>
-</body>
-</html>
