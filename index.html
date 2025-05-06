@@ -91,7 +91,8 @@ class Editor {
             scale: 1,
             currentTool: 'select',
             isDragging: false,
-            startPos: { x: 0, y: 0 }
+            startPos: { x: 0, y: 0 },
+            currentElement: null
         };
 
         this.init();
@@ -109,7 +110,6 @@ class Editor {
     }
 
     setupEventListeners() {
-        // Обработчики инструментов
         this.tools.forEach(tool => {
             document.getElementById(`${tool}Tool`).addEventListener('click', () => {
                 this.setTool(tool);
@@ -120,12 +120,10 @@ class Editor {
             this.deleteSelected();
         });
 
-        // Обработчики canvas
         this.canvas.addEventListener('mousedown', e => this.handleMouseDown(e));
         this.canvas.addEventListener('mousemove', e => this.handleMouseMove(e));
         this.canvas.addEventListener('mouseup', () => this.handleMouseUp());
         this.canvas.addEventListener('wheel', e => this.handleWheel(e));
-
         window.addEventListener('resize', () => this.setupCanvas());
     }
 
@@ -150,9 +148,39 @@ class Editor {
         this.state.isDragging = true;
         this.state.startPos = pos;
 
-        if(this.state.currentTool === 'select') {
+        if(this.state.currentTool !== 'select') {
+            this.state.currentElement = {
+                type: this.state.currentTool,
+                x1: pos.x,
+                y1: pos.y,
+                x2: pos.x,
+                y2: pos.y,
+                color: '#2196F3'
+            };
+        } else {
             this.handleSelection(pos);
         }
+    }
+
+    updateCurrentElement(pos) {
+        if(!this.state.currentElement) return;
+        
+        this.state.currentElement.x2 = pos.x;
+        this.state.currentElement.y2 = pos.y;
+
+        if(this.state.currentElement.type === 'rect') {
+            this.state.currentElement.width = pos.x - this.state.currentElement.x1;
+            this.state.currentElement.height = pos.y - this.state.currentElement.y1;
+        }
+
+        if(this.state.currentElement.type === 'circle') {
+            this.state.currentElement.radius = Math.hypot(
+                pos.x - this.state.currentElement.x1,
+                pos.y - this.state.currentElement.y1
+            );
+        }
+
+        this.draw();
     }
 
     handleMouseMove(e) {
@@ -163,17 +191,17 @@ class Editor {
             if(this.state.currentTool === 'select') {
                 this.state.offset.x += e.movementX;
                 this.state.offset.y += e.movementY;
-                this.draw();
             } else {
                 this.updateCurrentElement(pos);
             }
+            this.draw();
         }
     }
 
     handleMouseUp() {
-        if(this.state.currentTool !== 'select') {
-            this.state.elements.push(this.currentElement);
-            this.currentElement = null;
+        if(this.state.currentElement) {
+            this.state.elements.push(this.state.currentElement);
+            this.state.currentElement = null;
         }
         this.state.isDragging = false;
         this.draw();
@@ -182,7 +210,7 @@ class Editor {
     handleSelection(pos) {
         this.state.selected.clear();
         this.state.elements.forEach((element, index) => {
-            if(this.checkCollision(element, pos)) {
+            if(element && this.checkCollision(element, pos)) {
                 this.state.selected.add(index);
             }
         });
@@ -191,12 +219,14 @@ class Editor {
     }
 
     checkCollision(element, pos) {
+        if(!element?.type) return false;
+        
         switch(element.type) {
             case 'rect':
-                return pos.x >= element.x && pos.x <= element.x + element.width &&
-                       pos.y >= element.y && pos.y <= element.y + element.height;
+                return pos.x >= element.x1 && pos.x <= element.x1 + element.width &&
+                       pos.y >= element.y1 && pos.y <= element.y1 + element.height;
             case 'circle':
-                return Math.hypot(pos.x - element.x, pos.y - element.y) <= element.radius;
+                return Math.hypot(pos.x - element.x1, pos.y - element.y1) <= element.radius;
             case 'line':
                 const dx = element.x2 - element.x1;
                 const dy = element.y2 - element.y1;
@@ -232,6 +262,8 @@ class Editor {
 
         // Отрисовка элементов
         this.state.elements.forEach((element, index) => {
+            if(!element?.type) return;
+            
             this.ctx.beginPath();
             this.ctx.strokeStyle = this.state.selected.has(index) ? '#f44336' : '#2196F3';
             this.ctx.lineWidth = 2;
@@ -242,14 +274,46 @@ class Editor {
                     this.ctx.lineTo(element.x2, element.y2);
                     break;
                 case 'rect':
-                    this.ctx.rect(element.x, element.y, element.width, element.height);
+                    this.ctx.rect(element.x1, element.y1, element.width, element.height);
                     break;
                 case 'circle':
-                    this.ctx.arc(element.x, element.y, element.radius, 0, Math.PI*2);
+                    this.ctx.arc(element.x1, element.y1, element.radius, 0, Math.PI*2);
                     break;
             }
             this.ctx.stroke();
         });
+
+        // Отрисовка текущего элемента
+        if(this.state.currentElement) {
+            this.ctx.beginPath();
+            this.ctx.strokeStyle = '#2196F3';
+            this.ctx.lineWidth = 2;
+            
+            switch(this.state.currentElement.type) {
+                case 'line':
+                    this.ctx.moveTo(this.state.currentElement.x1, this.state.currentElement.y1);
+                    this.ctx.lineTo(this.state.currentElement.x2, this.state.currentElement.y2);
+                    break;
+                case 'rect':
+                    this.ctx.rect(
+                        this.state.currentElement.x1,
+                        this.state.currentElement.y1,
+                        this.state.currentElement.width,
+                        this.state.currentElement.height
+                    );
+                    break;
+                case 'circle':
+                    this.ctx.arc(
+                        this.state.currentElement.x1,
+                        this.state.currentElement.y1,
+                        this.state.currentElement.radius,
+                        0,
+                        Math.PI*2
+                    );
+                    break;
+            }
+            this.ctx.stroke();
+        }
 
         this.ctx.restore();
     }
@@ -262,7 +326,6 @@ class Editor {
     }
 }
 
-// Инициализация после загрузки страницы
 window.addEventListener('DOMContentLoaded', () => {
     const editor = new Editor();
 });
