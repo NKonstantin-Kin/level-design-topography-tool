@@ -4,8 +4,15 @@
     <meta charset="UTF-8">
     <title>Топографический редактор с сеткой</title>
     <style>
-        /* ... (прежние стили без изменений) ... */
-        
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+        }
+
         .grid-controls {
             padding: 10px;
             background: #fff;
@@ -14,9 +21,58 @@
             gap: 10px;
             align-items: center;
         }
+
         .grid-controls input {
             width: 60px;
             padding: 4px;
+        }
+
+        .toolbar {
+            padding: 10px;
+            background: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #e3f2fd;
+            border-color: #2196F3;
+        }
+
+        button.active {
+            background: #2196F3;
+            color: white;
+            border-color: #1976D2;
+        }
+
+        #canvas {
+            flex: 1;
+            margin: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            touch-action: none;
+        }
+
+        .status-bar {
+            padding: 8px 16px;
+            background: #fff;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #666;
         }
     </style>
 </head>
@@ -27,12 +83,17 @@
         <button id="toggleGrid">Сетка: Вкл</button>
     </div>
     <div class="toolbar">
-        <!-- ... (прежние элементы toolbar) ... -->
+        <button data-tool="select" class="active">Выделение</button>
+        <button data-tool="line">Линия</button>
+        <button data-tool="rect">Прямоугольник</button>
+        <button data-tool="circle">Круг</button>
+        <button id="deleteBtn">Удалить</button>
     </div>
 
     <canvas id="canvas"></canvas>
     <div class="status-bar">
-        <!-- ... (прежний статус-бар) ... -->
+        <span id="cursorPos">X: 0, Y: 0</span>
+        <span id="selectedInfo">Выделено: 0</span>
     </div>
 
 <script>
@@ -65,10 +126,44 @@ class Editor {
         this.draw();
     }
 
+    initCanvas() {
+        const updateSize = () => {
+            this.canvas.width = window.innerWidth - 40;
+            this.canvas.height = window.innerHeight - 100;
+        };
+        updateSize();
+        window.addEventListener('resize', updateSize);
+    }
+
+    initEventListeners() {
+        document.querySelectorAll('[data-tool]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.setTool(btn.dataset.tool);
+                document.querySelectorAll('[data-tool]').forEach(b => 
+                    b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        document.getElementById('deleteBtn').addEventListener('click', () => {
+            this.state.elements = this.state.elements.filter(el => 
+                !this.state.selected.has(el.id));
+            this.state.selected.clear();
+            this.updateSelectedInfo();
+            this.draw();
+        });
+
+        this.canvas.addEventListener('mousedown', e => this.onMouseDown(e));
+        this.canvas.addEventListener('mousemove', e => this.onMouseMove(e));
+        this.canvas.addEventListener('mouseup', () => this.onMouseUp());
+        this.canvas.addEventListener('wheel', e => this.onWheel(e), { passive: false });
+    }
+
     initGridControls() {
         const gridSizeInput = document.getElementById('gridSize');
         const toggleGridBtn = document.getElementById('toggleGrid');
 
+        gridSizeInput.value = this.state.grid.size;
         gridSizeInput.addEventListener('change', () => {
             this.state.grid.size = parseInt(gridSizeInput.value);
             this.draw();
@@ -81,7 +176,76 @@ class Editor {
         });
     }
 
-    // ... (методы initCanvas, initEventListeners без изменений) ...
+    setTool(tool) {
+        this.state.currentTool = tool;
+        this.state.currentElement = null;
+    }
+
+    getMousePos(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - rect.left - this.state.offset.x) / this.state.scale,
+            y: (e.clientY - rect.top - this.state.offset.y) / this.state.scale
+        };
+    }
+
+    onMouseDown(e) {
+        const pos = this.getMousePos(e);
+        this.state.isDragging = true;
+        this.state.startPos = pos;
+
+        if (this.state.currentTool === 'select') {
+            const element = this.findElementAt(pos);
+            if (element) {
+                if (!e.shiftKey) this.state.selected.clear();
+                this.state.selected.add(element.id);
+                this.saveElementStartPositions();
+                this.state.dragType = 'move';
+            } else {
+                this.state.dragType = 'pan';
+                this.state.offset.start = { ...this.state.offset };
+            }
+        } else {
+            this.startNewElement(pos);
+            this.state.dragType = 'create';
+        }
+        
+        this.updateSelectedInfo();
+        this.draw();
+    }
+
+    onMouseMove(e) {
+        const pos = this.getMousePos(e);
+        this.updateCursorPos(pos);
+
+        if (!this.state.isDragging) return;
+
+        switch(this.state.dragType) {
+            case 'pan':
+                this.state.offset.x = this.state.offset.start.x + (e.clientX - this.state.startPos.x);
+                this.state.offset.y = this.state.offset.start.y + (e.clientY - this.state.startPos.y);
+                break;
+                
+            case 'move':
+                this.moveSelectedElements(pos);
+                break;
+                
+            case 'create':
+                this.updateCurrentElement(pos);
+                break;
+        }
+
+        this.draw();
+    }
+
+    onMouseUp() {
+        if (this.state.currentElement) {
+            this.finalizeElement();
+        }
+        this.state.isDragging = false;
+        this.state.dragType = null;
+        this.draw();
+    }
 
     startNewElement(pos) {
         const snappedPos = this.snapToGrid(pos);
@@ -91,7 +255,8 @@ class Editor {
             x1: snappedPos.x,
             y1: snappedPos.y,
             x2: snappedPos.x,
-            y2: snappedPos.y
+            y2: snappedPos.y,
+            radius: 0
         };
     }
 
@@ -117,15 +282,36 @@ class Editor {
         };
     }
 
+    finalizeElement() {
+        const el = this.state.currentElement;
+        if (!el) return;
+
+        if (el.type === 'rect') {
+            el.x1 = Math.min(el.x1, el.x2);
+            el.y1 = Math.min(el.y1, el.y2);
+            el.x2 = Math.max(el.x1, el.x2);
+            el.y2 = Math.max(el.y1, el.y2);
+        }
+
+        this.state.elements.push({...el});
+        this.state.currentElement = null;
+    }
+
+    findElementAt(pos) {
+        for (let i = this.state.elements.length - 1; i >= 0; i--) {
+            const el = this.state.elements[i];
+            if (this.checkCollision(el, pos)) return el;
+        }
+        return null;
+    }
+
     checkCollision(el, pos) {
         switch(el.type) {
             case 'line':
                 return this.pointNearLine(pos, el);
             case 'rect':
-                return pos.x >= Math.min(el.x1, el.x2) && 
-                       pos.x <= Math.max(el.x1, el.x2) && 
-                       pos.y >= Math.min(el.y1, el.y2) && 
-                       pos.y <= Math.max(el.y1, el.y2);
+                return pos.x >= el.x1 && pos.x <= el.x2 && 
+                       pos.y >= el.y1 && pos.y <= el.y2;
             case 'circle':
                 return Math.hypot(pos.x - el.x1, pos.y - el.y1) <= el.radius;
             default:
@@ -147,6 +333,21 @@ class Editor {
         return dist < 5 && t >= 0 && t <= 1;
     }
 
+    saveElementStartPositions() {
+        this.state.elementStartPositions.clear();
+        this.state.selected.forEach(id => {
+            const el = this.state.elements.find(e => e.id === id);
+            if (el) {
+                this.state.elementStartPositions.set(id, {
+                    x1: el.x1,
+                    y1: el.y1,
+                    x2: el.x2,
+                    y2: el.y2
+                });
+            }
+        });
+    }
+
     moveSelectedElements(pos) {
         const delta = {
             x: (pos.x - this.state.startPos.x),
@@ -165,6 +366,22 @@ class Editor {
                 y2: start.y2 + delta.y
             };
         });
+    }
+
+    onWheel(e) {
+        e.preventDefault();
+        const zoomIntensity = 0.1;
+        const delta = e.deltaY < 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
+        
+        const mousePos = this.getMousePos(e);
+        const newScale = this.state.scale * delta;
+        
+        if (newScale > 0.1 && newScale < 10) {
+            this.state.offset.x -= (mousePos.x * this.state.scale) * (delta - 1);
+            this.state.offset.y -= (mousePos.y * this.state.scale) * (delta - 1);
+            this.state.scale = newScale;
+            this.draw();
+        }
     }
 
     drawGrid() {
@@ -225,12 +442,7 @@ class Editor {
                     this.ctx.lineTo(el.x2, el.y2);
                     break;
                 case 'rect':
-                    this.ctx.rect(
-                        Math.min(el.x1, el.x2),
-                        Math.min(el.y1, el.y2),
-                        Math.abs(el.x2 - el.x1),
-                        Math.abs(el.y2 - el.y1)
-                    );
+                    this.ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
                     break;
                 case 'circle':
                     this.ctx.arc(el.x1, el.y1, el.radius, 0, Math.PI*2);
@@ -252,12 +464,7 @@ class Editor {
                     this.ctx.lineTo(el.x2, el.y2);
                     break;
                 case 'rect':
-                    this.ctx.rect(
-                        Math.min(el.x1, el.x2),
-                        Math.min(el.y1, el.y2),
-                        Math.abs(el.x2 - el.x1),
-                        Math.abs(el.y2 - el.y1)
-                    );
+                    this.ctx.rect(el.x1, el.y1, el.x2 - el.x1, el.y2 - el.y1);
                     break;
                 case 'circle':
                     this.ctx.arc(el.x1, el.y1, el.radius, 0, Math.PI*2);
@@ -271,7 +478,15 @@ class Editor {
         this.ctx.restore();
     }
 
-    // ... (остальные методы без изменений) ...
+    updateCursorPos(pos) {
+        document.getElementById('cursorPos').textContent = 
+            `X: ${Math.round(pos.x)}, Y: ${Math.round(pos.y)}`;
+    }
+
+    updateSelectedInfo() {
+        document.getElementById('selectedInfo').textContent = 
+            `Выделено: ${this.state.selected.size}`;
+    }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
